@@ -62,6 +62,19 @@ if ($WithElastic) {
     Write-Step 'Ensuring Elasticsearch container is up (docker compose up -d)'
     $composeFile = Join-Path $repoRoot 'infra/elasticsearch/docker-compose.yml'
     if (-not (Test-Path $composeFile)) { throw "compose file not found: $composeFile" }
+
+    # If a stale 'hfa-es' exists that was NOT started by this compose project,
+    # compose will fail with a name-conflict ("Container name /hfa-es is already
+    # in use"). Detect by comparing all 'hfa-es' containers against the subset
+    # that carries the compose project label.
+    $allIds     = @(& docker ps -a -q --filter 'name=^hfa-es$' 2>$null) | Where-Object { $_ }
+    $managedIds = @(& docker ps -a -q --filter 'name=^hfa-es$' --filter 'label=com.docker.compose.project=hfa' 2>$null) | Where-Object { $_ }
+    $stale      = $allIds | Where-Object { $managedIds -notcontains $_ }
+    foreach ($cid in $stale) {
+        Write-Step "Removing stale hfa-es container $cid (not owned by compose project 'hfa')"
+        & docker rm -f $cid | Out-Null
+    }
+
     & docker compose -f $composeFile up -d
     if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed (is Docker Desktop running?)' }
 
@@ -96,7 +109,11 @@ dotnet build demo-api/demo-api.csproj --nologo --verbosity minimal | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'demo-api build failed' }
 
 if (-not (Test-PortFree 5333)) {
-    throw 'Port 5333 is already in use. Stop the listener or use a different port.'
+    $owners = @(Get-NetTCPConnection -State Listen -LocalPort 5333 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+    Write-Step "Port 5333 is held by pid(s) $($owners -join ', ') -- stopping (likely leftover demo-api)"
+    foreach ($pidToKill in $owners) { Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 800
+    if (-not (Test-PortFree 5333)) { throw 'Port 5333 is still in use after attempted cleanup.' }
 }
 
 Write-Step 'Starting demo-api on http://localhost:5333'
@@ -125,8 +142,8 @@ try {
     Write-Step '9 erroneous requests sent'
 
     if ($WithElastic) {
-        Write-Step 'Letting Serilog flush, then reshaping ECS logs -> mapper shape'
-        Start-Sleep -Seconds 4
+        Write-Step 'Letting Serilog flush its Elasticsearch sink (8s)'
+        Start-Sleep -Seconds 8
         $bootstrap = Join-Path $repoRoot 'infra/elasticsearch/bootstrap.ps1'
         if (-not (Test-Path $bootstrap)) { throw "bootstrap script missing: $bootstrap" }
         & powershell -NoProfile -ExecutionPolicy Bypass -File $bootstrap -ElasticUri $ElasticUri

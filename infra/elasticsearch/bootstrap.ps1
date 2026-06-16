@@ -100,6 +100,9 @@ if (-not $sourceExists) {
 
 # Use _reindex with the pipeline. Dynamic mapping on the destination is what the
 # CLI relies on (it queries fields.Application.keyword + level.keyword subfields).
+Write-Step "Refresh $sourceIndex (flush pending Serilog batches into searchable state)"
+try { Invoke-Es -Method POST -Path "/$sourceIndex/_refresh" | Out-Null } catch { Write-Skip "refresh failed: $($_.Exception.Message)" }
+
 Write-Step "Reindex $sourceIndex -> $destIndex via pipeline $pipelineId"
 $reindexBody = @{
     source = @{ index = $sourceIndex }
@@ -113,11 +116,22 @@ if (@($reindex.failures).Count -gt 0) {
 }
 
 # --- 4. (re)bind the alias ----------------------------------------------------
-$existingAliases = @{}
-try { $existingAliases = Invoke-Es -Method GET -Path "/_alias/$aliasName" } catch { }
+# Invoke-RestMethod returns a PSCustomObject on success; on 404 (alias does not
+# exist yet) it throws. We must NOT iterate .PSObject.Properties on a Hashtable
+# fallback -- that would yield the .NET property names of Hashtable itself
+# (IsReadOnly, Keys, Values, ...) and ES would 404 trying to remove them.
+$existingIndices = @()
+try {
+    $existing = Invoke-Es -Method GET -Path "/_alias/$aliasName"
+    if ($existing -is [System.Management.Automation.PSCustomObject]) {
+        $existingIndices = @($existing.PSObject.Properties | Where-Object { $_.MemberType -eq 'NoteProperty' } | Select-Object -ExpandProperty Name)
+    }
+} catch {
+    # 404 is expected on a fresh cluster.
+}
 
 $aliasActions = @()
-foreach ($idx in $existingAliases.PSObject.Properties.Name) {
+foreach ($idx in $existingIndices) {
     if ($idx -ne $destIndex) {
         $aliasActions += @{ remove = @{ index = $idx; alias = $aliasName } }
     }
