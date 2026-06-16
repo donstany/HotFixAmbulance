@@ -1,0 +1,27 @@
+{
+  "description": "Reshapes Elastic Common Schema documents (as emitted by Elastic.CommonSchema.Serilog) into the field shape expected by HotFixAmbulance.Elastic.SerilogDocumentMapper (fields.Application, fields.Version, fields.CorrelationId, fields.RequestMethod, fields.RequestPath, fields.StatusCode, top-level level).",
+  "processors": [
+    {
+      "script": {
+        "description": "ECS emits the level under the flat dotted key 'log.level'; promote it to a top-level 'level' field that SerilogDocumentMapper reads.",
+        "lang": "painless",
+        "source": "if (ctx.containsKey('log.level')) { ctx.level = ctx.remove('log.level'); } else if (ctx.log != null && ctx.log instanceof Map && ctx.log.level != null) { ctx.level = ctx.log.level; ctx.log.remove('level'); }"
+      }
+    },
+    { "rename": { "field": "labels.Application",   "target_field": "fields.Application",   "ignore_missing": true } },
+    { "rename": { "field": "labels.Version",       "target_field": "fields.Version",       "ignore_missing": true } },
+    { "rename": { "field": "labels.CorrelationId", "target_field": "fields.CorrelationId", "ignore_missing": true } },
+    { "rename": { "field": "labels.ExceptionType", "target_field": "fields.ExceptionType", "ignore_missing": true } },
+    { "rename": { "field": "url.path",                       "target_field": "fields.RequestPath",   "ignore_missing": true } },
+    { "rename": { "field": "http.request.method",            "target_field": "fields.RequestMethod", "ignore_missing": true } },
+    { "rename": { "field": "http.response.status_code",      "target_field": "fields.StatusCode",    "ignore_missing": true } }
+  ],
+  "on_failure": [
+    {
+      "set": {
+        "field": "_ingest.pipeline_error",
+        "value": "{{ _ingest.on_failure_message }}"
+      }
+    }
+  ]
+}

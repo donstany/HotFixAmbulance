@@ -1,0 +1,47 @@
+# Single-node Elasticsearch 8.x for local HotFixAmbulance demos.
+#
+# Security is disabled deliberately — this stack is only suitable for local
+# development against http://localhost:9200. Do NOT expose this to a network.
+#
+# Usage:
+#   docker compose -f infra/elasticsearch/docker-compose.yml up -d
+#   docker compose -f infra/elasticsearch/docker-compose.yml down            # keeps the data volume
+#   docker compose -f infra/elasticsearch/docker-compose.yml down -v         # wipes the data volume
+#
+# The companion script infra/elasticsearch/bootstrap.ps1 installs the ingest
+# pipeline that reshapes ECS documents (as emitted by demo-api's
+# Elastic.CommonSchema.Serilog formatter) into the field shape that
+# HotFixAmbulance.Elastic.SerilogDocumentMapper expects.
+
+name: hfa
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: hfa-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - cluster.name=hfa-local
+      - node.name=hfa-es
+    ports:
+      - "9200:9200"
+    volumes:
+      - hfa-es-data:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=2s || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  hfa-es-data:
+    name: hfa-es-data
