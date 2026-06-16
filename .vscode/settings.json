@@ -7,6 +7,26 @@
         "/^git config user\\.name; git config user\\.email$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^Write-Host \"== versions ==\"; dotnet --version; node --version; npm --version; Write-Host \"`n== port check ==\"; foreach \\(\\$p in 5266,5173,5333\\) \\{ \\$busy = Get-NetTCPConnection -State Listen -LocalPort \\$p -ErrorAction SilentlyContinue; if \\(\\$busy\\) \\{ Write-Host \"  \\$p  BUSY \\(pid \\$\\(\\$busy\\.OwningProcess -join ','\\)\\)\" -ForegroundColor Yellow \\} else \\{ Write-Host \"  \\$p  free\" -ForegroundColor Green \\} \\}; Write-Host \"`n== git ==\"; git status --short; git log --oneline -5$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Write-Host \"== Backend: dotnet test ==\" -ForegroundColor Cyan; dotnet test backend/HotFixAmbulance\\.sln --nologo --verbosity minimal 2>&1 \\| Select-Object -Last 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Write-Host \"== Starting HotFixAmbulance\\.Api on http://localhost:5266 ==\" -ForegroundColor Cyan; \\$env:ASPNETCORE_URLS = 'http://localhost:5266'; dotnet run --project backend/src/HotFixAmbulance\\.Api/HotFixAmbulance\\.Api\\.csproj$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Write-Host \"== Starting HotFixAmbulance\\.Api on http://localhost:5266 ==\" -ForegroundColor Cyan; dotnet run --project backend/src/HotFixAmbulance\\.Api/HotFixAmbulance\\.Api\\.csproj --no-launch-profile --urls http://localhost:5266$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Write-Host \"== Starting Vite dev server on http://localhost:5173 ==\" -ForegroundColor Cyan; npm --prefix frontend run dev$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
