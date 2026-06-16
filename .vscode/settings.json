@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^git status 2>&1; Write-Host \"---\"; git remote -v 2>&1; Write-Host \"---\"; gh auth status 2>&1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git config user\\.name; git config user\\.email$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
