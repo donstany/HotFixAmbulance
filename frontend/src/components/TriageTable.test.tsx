@@ -15,7 +15,7 @@ const SAMPLE: ErrorGroup[] = [
     httpStatus: 504,
     serviceVersion: '1.1.0',
     correlationIdCount: 2,
-    purpose: 'Upstream timeout',
+    suggestion: 'Upstream timeout',
     howToFix: 'abcd123 (2026-06-15) — bump HttpClient timeout',
   },
   {
@@ -29,7 +29,7 @@ const SAMPLE: ErrorGroup[] = [
     httpStatus: 500,
     serviceVersion: '1.1.0',
     correlationIdCount: 1,
-    purpose: 'OOM under load',
+    suggestion: 'OOM under load',
     howToFix: 'beef456 (2026-06-14) — tune GC settings',
   },
 ];
@@ -48,10 +48,19 @@ describe('<TriageTable />', () => {
     expect(firstRowBadge).toHaveTextContent('Fatal');
   });
 
-  it('shows the purpose and howToFix AI columns', () => {
+  it('renders a "Suggestion for Error" column header', () => {
+    render(<TriageTable groups={SAMPLE} />);
+    expect(screen.getByRole('columnheader', { name: /suggestion for error/i })).toBeInTheDocument();
+  });
+
+  it('shows the suggestion and howToFix AI columns with distinct text', () => {
     render(<TriageTable groups={SAMPLE} />);
     expect(screen.getByText('OOM under load')).toBeInTheDocument();
     expect(screen.getByText(/beef456/)).toBeInTheDocument();
+    // The two AI columns must render different content per row.
+    const suggestions = screen.getAllByTestId('suggestion').map((el) => el.textContent);
+    const fixes = screen.getAllByTestId('howtofix').map((el) => el.textContent);
+    suggestions.forEach((s, i) => expect(s).not.toEqual(fixes[i]));
   });
 
   it('truncates long messages with a tooltip', () => {

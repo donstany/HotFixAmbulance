@@ -104,10 +104,6 @@ if ($WithElastic) {
     }
 }
 
-Write-Step 'Building demo-api'
-dotnet build demo-api/demo-api.csproj --nologo --verbosity minimal | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'demo-api build failed' }
-
 if (-not (Test-PortFree 5333)) {
     $owners = @(Get-NetTCPConnection -State Listen -LocalPort 5333 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
     Write-Step "Port 5333 is held by pid(s) $($owners -join ', ') -- stopping (likely leftover demo-api)"
@@ -115,6 +111,20 @@ if (-not (Test-PortFree 5333)) {
     Start-Sleep -Milliseconds 800
     if (-not (Test-PortFree 5333)) { throw 'Port 5333 is still in use after attempted cleanup.' }
 }
+
+# Also stop any leftover demo-api process that isn't listening on 5333 yet
+# (e.g. startup crashed before bind) -- it can still hold demo-api.exe and
+# break `dotnet build` with MSB3027.
+$lingering = @(Get-Process -Name 'demo-api' -ErrorAction SilentlyContinue)
+foreach ($p in $lingering) {
+    Write-Step "Stopping lingering demo-api process (PID $($p.Id)) that holds the build output"
+    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+}
+if ($lingering) { Start-Sleep -Milliseconds 500 }
+
+Write-Step 'Building demo-api'
+dotnet build demo-api/demo-api.csproj --nologo --verbosity minimal | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'demo-api build failed' }
 
 Write-Step 'Starting demo-api on http://localhost:5333'
 $demoProcess = Start-Process -FilePath 'dotnet' `

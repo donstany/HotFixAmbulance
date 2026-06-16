@@ -14,3 +14,16 @@ Append-only timeline of TDD cycles. The latest entry is at the bottom. Entries a
 | 2026-06-16 11:04 | 7.1-7.4 | green | dotnet+npm — Backend: GetByIdAsync + GET /api/triage/runs/{id} rehydrating TriageResult + JsonStringEnumConverter (Severity now serializes as 'Error'). Frontend: scaffolded Vite + React 19 + TS + TanStack Table v8 + TanStack Query v5 + Tailwind v3 + Vitest + RTL + ESLint. 12-column TriageTable with severity sort and AI columns. 88 unit/integration backend tests + 8 frontend tests passing. All 4 pre-commit gates green. |
 | 2026-06-16 11:08 | 8.1-8.2 | green | dotnet+pwsh — demo-api: .NET 10 Minimal API with Serilog (Console + File + optional Elasticsearch sink via ECS formatter), 3 instrumented endpoints (POST /orders -> NRE, GET /payments/{id} -> upstream timeout, GET /users/{id} -> ArgumentOutOfRangeException for negative ids). Smoke-tested manually: 500/500/504 returned with structured Serilog events containing Application=demo-api + RequestPath + StatusCode + CorrelationId. scripts/demo.ps1 orchestrator builds demo-api, starts it, hammers endpoints, runs the CLI. Backend tests still 88/88 green. |
 | 2026-06-16 11:11 | 9.1 | green | docs — wrote docs/exam.md (Softuni rubric): 1-page idea + 9 modules with approach/workflow/tests/AI-tool/prompts, challenges + tool comparison, working-system evidence, screenshot capture plan, and repo link. |
+
+## Customization log
+
+Out-of-cycle changes (refactors, bug fixes, dev-workflow improvements) tracked outside the strict TDD timeline above.
+
+| When (UTC) | Area | Result | Note |
+| --- | --- | --- | --- |
+| 2026-06-16 13:29 | refactor | green | Renamed ErrorGroup.Purpose -> Suggestion across Core/Analysis/Cli/Api + frontend (types.ts, TriageTable). UI column header is now "Suggestion for Error". |
+| 2026-06-16 13:29 | analysis | green | AnalysisRule now carries both Suggestion (WHAT) and HowToFix (HOW). DefaultRules expanded so every rule (NullRef/Timeout/Deadlock/Validation/5xx) emits distinct, related text in the two AI columns. HeuristicAnalyzer.EnrichWithRule populates both. |
+| 2026-06-16 13:29 | tests | green | Updated HeuristicAnalyzerTests (5 renamed + new Analyze_fills_distinct_howtofix_for_each_matched_rule), CliRendererTests (Purpose -> Suggestion), TriageTable.test.tsx (suggestion field + new "Suggestion for Error" column-header assertion + distinct-text assertion). Backend 89/89, frontend 9/9 green. |
+| 2026-06-16 13:29 | docs | green | .claude/agents/log-analyzer.md JSON schema and Markdown table use suggestion / "Suggestion for Error"; .claude/commands/hot-fix-ambulance.md wording aligned. |
+| 2026-06-16 13:29 | bugfix | green | HotFixAmbulance.Api: appsettings.json ships Apis:ConfigPath = "" which slipped past Program.cs's ?? fallback (empty string is not null) -> ApisConfig.LoadFromFile("") threw and every POST /api/triage returned 500. Replaced with IsNullOrWhiteSpace check + new ApisConfigPathResolver that probes bin dir, repo config/apis.config.json, then config/apis.config.example.json. `dotnet run` from any CWD now resolves the config. |
+| 2026-06-16 13:29 | demo | green | Verified end-to-end: POST /api/triage/demo-api returns 22 groups / 48 logs with populated suggestion + howToFix; FixHintBuilder overrides heuristic HowToFix with real origin/main commits where keywords match. |

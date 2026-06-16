@@ -12,7 +12,9 @@ export interface ErrorGroup {
   httpStatus: number | null;
   serviceVersion: string | null;
   correlationIdCount: number;
-  purpose: string | null;
+  /** Renders in the UI's "Suggestion for Error" column. WHAT the error means. */
+  suggestion: string | null;
+  /** Renders in the UI's "How to fix" column. HOW to remediate it. */
   howToFix: string | null;
 }
 

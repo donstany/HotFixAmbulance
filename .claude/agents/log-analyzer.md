@@ -22,7 +22,7 @@ You receive a JSON document produced by `HotFixAmbulance.Cli --format json` of t
       "exceptionType": "...", "message": "...",
       "endpoint": "...", "httpStatus": 0,
       "serviceVersion": "...", "correlationIdCount": 0,
-      "purpose": "...", "howToFix": "..."
+      "suggestion": "...", "howToFix": "..."
     }
   ]
 }
@@ -41,7 +41,7 @@ You receive a JSON document produced by `HotFixAmbulance.Cli --format json` of t
 ```markdown
 **API**: `<apiName>` — **Lookback**: `<lookback>` — **Items**: `<items.length>`
 
-| # | Severity | Count | Exception | Endpoint | Purpose | How to fix |
+| # | Severity | Count | Exception | Endpoint | Suggestion for Error | How to fix |
 |---|----------|-------|-----------|----------|---------|------------|
 | 1 | ... | ... | ... | ... | ... | ... |
 

@@ -32,7 +32,7 @@ For the given `<apiName>`, gather error logs from the myPos Elasticsearch cluste
    dotnet run --project backend/src/HotFixAmbulance.Cli -- "<apiName>" --lookback "<lookback>" --format json
    ```
    The CLI exits non-zero on errors. Surface stderr verbatim to the user if that happens.
-3. **Hand the JSON to the `log-analyzer` subagent** (use the `Task` tool) and ask it to produce a short Markdown summary: top 5 error groups, each with severity, count, purpose, and the proposed fix from git history. The agent must not invent fields.
+3. **Hand the JSON to the `log-analyzer` subagent** (use the `Task` tool) and ask it to produce a short Markdown summary: top 5 error groups, each with severity, count, suggestion-for-error, and the proposed fix from git history. The agent must not invent fields.
 4. **Open the UI** unless `--no-open` was provided. The CLI will already print the URL (e.g. `http://localhost:5173/?analysisId=<guid>`); just confirm to the user.
 5. **Quote the Markdown table** the agent produced, followed by one paragraph of context (which API, which time window, the analysis id).
 6. **Record evidence**: append a one-line entry to `docs/dev-log.md` describing the invocation (handled by the `post-tool-use.ps1` hook — do not write it yourself).

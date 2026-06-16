@@ -69,7 +69,7 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
             source.SearchAsync(Arg.Any<LogQuery>(), Arg.Any<CancellationToken>())
                 .Returns(OneError());
 
-            // Fake git collaborators — return no commits so HowToFix stays null.
+            // Fake git collaborators — return no commits so HowToFix falls back to the heuristic baseline.
             var cache = Substitute.For<IGitRepoCache>();
             cache.EnsureUpToDateAsync(Arg.Any<ApiRepoEntry>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult("/tmp/fake"));

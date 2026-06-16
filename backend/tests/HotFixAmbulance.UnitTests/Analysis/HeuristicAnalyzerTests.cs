@@ -99,65 +99,90 @@ public sealed class HeuristicAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_fills_purpose_for_null_reference()
+    public void Analyze_fills_suggestion_for_null_reference()
     {
         var sut = new HeuristicAnalyzer();
         var result = sut.Analyze([Make(exceptionType: "System.NullReferenceException")]);
 
-        result[0].Purpose.Should().NotBeNullOrWhiteSpace();
-        result[0].Purpose!.ToLowerInvariant().Should().Contain("null");
+        result[0].Suggestion.Should().NotBeNullOrWhiteSpace();
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain("null");
     }
 
     [Fact]
-    public void Analyze_fills_purpose_for_timeout()
+    public void Analyze_fills_suggestion_for_timeout()
     {
         var sut = new HeuristicAnalyzer();
         var result = sut.Analyze(
             [Make(exceptionType: "System.TimeoutException", message: "The operation has timed out")]);
 
-        result[0].Purpose!.ToLowerInvariant().Should().Contain("timeout");
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain("timeout");
     }
 
     [Fact]
-    public void Analyze_fills_purpose_for_database_deadlock()
+    public void Analyze_fills_suggestion_for_database_deadlock()
     {
         var sut = new HeuristicAnalyzer();
         var result = sut.Analyze(
             [Make(exceptionType: "Microsoft.Data.SqlClient.SqlException",
                 message: "Transaction was deadlocked on lock resources")]);
 
-        result[0].Purpose!.ToLowerInvariant().Should().Contain("deadlock");
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain("deadlock");
     }
 
     [Fact]
-    public void Analyze_fills_purpose_for_validation_failure()
+    public void Analyze_fills_suggestion_for_validation_failure()
     {
         var sut = new HeuristicAnalyzer();
         var result = sut.Analyze(
             [Make(exceptionType: "FluentValidation.ValidationException",
                 message: "Field X is required", status: 400, severity: Severity.Warning)]);
 
-        result[0].Purpose!.ToLowerInvariant().Should().Contain("validation");
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain("validation");
     }
 
     [Fact]
-    public void Analyze_fills_generic_5xx_purpose_when_status_500_without_known_exception()
+    public void Analyze_fills_generic_5xx_suggestion_when_status_500_without_known_exception()
     {
         var sut = new HeuristicAnalyzer();
         var result = sut.Analyze(
             [Make(exceptionType: "App.Boom", message: "Boom", status: 503)]);
 
-        result[0].Purpose!.ToLowerInvariant().Should().Contain("5xx");
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain("5xx");
     }
 
     [Fact]
-    public void Analyze_leaves_purpose_null_when_no_rule_matches()
+    public void Analyze_leaves_suggestion_and_howtofix_null_when_no_rule_matches()
     {
         var sut = new HeuristicAnalyzer();
         var result = sut.Analyze(
             [Make(exceptionType: "App.Custom", message: "something unusual", status: 200, severity: Severity.Warning)]);
 
-        result[0].Purpose.Should().BeNull();
+        result[0].Suggestion.Should().BeNull();
+        result[0].HowToFix.Should().BeNull();
+    }
+
+    [Fact]
+    public void Analyze_fills_distinct_howtofix_for_each_matched_rule()
+    {
+        var sut = new HeuristicAnalyzer();
+
+        var nullRef = sut.Analyze([Make(exceptionType: "System.NullReferenceException")])[0];
+        var timeout = sut.Analyze(
+            [Make(exceptionType: "System.TimeoutException", message: "timed out")])[0];
+        var deadlock = sut.Analyze(
+            [Make(exceptionType: "SqlException", message: "Transaction was deadlocked")])[0];
+
+        // Every matched rule populates BOTH columns, with HowToFix distinct from Suggestion
+        // (so the UI doesn't show the same text twice).
+        nullRef.Suggestion.Should().NotBeNullOrWhiteSpace();
+        nullRef.HowToFix.Should().NotBeNullOrWhiteSpace().And.NotBe(nullRef.Suggestion);
+        timeout.HowToFix.Should().NotBeNullOrWhiteSpace().And.NotBe(timeout.Suggestion);
+        deadlock.HowToFix.Should().NotBeNullOrWhiteSpace().And.NotBe(deadlock.Suggestion);
+
+        // And each rule produces its OWN HowToFix (no shared fallback string).
+        new[] { nullRef.HowToFix, timeout.HowToFix, deadlock.HowToFix }
+            .Distinct()
+            .Should().HaveCount(3);
     }
 
     [Fact]

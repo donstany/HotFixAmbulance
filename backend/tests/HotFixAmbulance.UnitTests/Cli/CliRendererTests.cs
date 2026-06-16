@@ -9,7 +9,7 @@ namespace HotFixAmbulance.UnitTests.Cli;
 public sealed class CliRendererTests
 {
     [Fact]
-    public async Task RenderTableAsync_writes_header_and_rows_with_purpose_and_fix()
+    public async Task RenderTableAsync_writes_header_and_rows_with_suggestion_and_fix()
     {
         var when = new DateTimeOffset(2026, 6, 16, 10, 0, 0, TimeSpan.Zero);
         var group = new ErrorGroup
@@ -24,7 +24,7 @@ public sealed class CliRendererTests
             HttpStatus = 500,
             ServiceVersion = "1.2.3",
             CorrelationIdCount = 2,
-            Purpose = "Null guard missing",
+            Suggestion = "Null guard missing",
             HowToFix = "abcdef1 (2026-06-15) — guard cart.Items",
         };
         var result = new TriageResult(
@@ -44,7 +44,7 @@ public sealed class CliRendererTests
         output.Should().Contain("[Error]");
         output.Should().Contain("System.NullReferenceException");
         output.Should().Contain("/checkout/confirm");
-        output.Should().Contain("Purpose: Null guard missing");
+        output.Should().Contain("Suggestion: Null guard missing");
         output.Should().Contain("abcdef1 (2026-06-15)");
     }
 }

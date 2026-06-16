@@ -7,7 +7,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:5266',
+      // HotFixAmbulance.Api default HTTP port (see backend/src/HotFixAmbulance.Api/Properties/launchSettings.json)
+      '/api': 'http://localhost:5283',
     },
   },
 });

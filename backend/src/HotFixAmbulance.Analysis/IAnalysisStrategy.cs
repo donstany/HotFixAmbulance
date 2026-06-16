@@ -9,8 +9,9 @@ namespace HotFixAmbulance.Analysis;
 public interface IAnalysisStrategy
 {
     /// <summary>
-    /// Groups the supplied logs, fills <see cref="ErrorGroup.Purpose"/> where a rule matches,
-    /// and returns them ranked per <see cref="ErrorGroup.RankBySeverity"/>.
+    /// Groups the supplied logs, fills <see cref="ErrorGroup.Suggestion"/> and
+    /// <see cref="ErrorGroup.HowToFix"/> where a rule matches, and returns them ranked per
+    /// <see cref="ErrorGroup.RankBySeverity"/>.
     /// </summary>
     IReadOnlyList<ErrorGroup> Analyze(IReadOnlyCollection<LogEntry> logs);
 }

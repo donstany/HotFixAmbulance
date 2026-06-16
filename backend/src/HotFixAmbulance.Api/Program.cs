@@ -25,10 +25,15 @@ builder.Services.AddHotFixPersistence(builder.Configuration);
 builder.Services.AddSingleton<IAnalysisStrategy, HeuristicAnalyzer>();
 
 // ApisConfig is loaded eagerly from a JSON file pointed to by Apis:ConfigPath.
+// An empty string in config counts as "use default" — checked-in appsettings ships
+// with `"Apis": { "ConfigPath": "" }` as a placeholder.
 builder.Services.AddSingleton(sp =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
-    var path = cfg["Apis:ConfigPath"] ?? Path.Combine(AppContext.BaseDirectory, "apis.config.json");
+    var configured = cfg["Apis:ConfigPath"];
+    var path = string.IsNullOrWhiteSpace(configured)
+        ? ApisConfigPathResolver.Resolve()
+        : configured;
     return ApisConfig.LoadFromFile(path);
 });
 
@@ -108,3 +113,28 @@ static TriageResult Rehydrate(TriageRun run)
 
 // Exposed for WebApplicationFactory in integration tests.
 public partial class Program;
+
+internal static class ApisConfigPathResolver
+{
+    /// <summary>
+    /// Resolves the default <c>apis.config.json</c> location when <c>Apis:ConfigPath</c> is missing
+    /// or blank: first the binary directory (production deployment layout), then the repo's
+    /// <c>config/</c> folder so a developer running <c>dotnet run</c> just works, and finally the
+    /// example file checked into <c>config/apis.config.example.json</c>.
+    /// </summary>
+    public static string Resolve()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "apis.config.json"),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "config", "apis.config.json")),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "config", "apis.config.example.json")),
+        };
+        foreach (var c in candidates)
+        {
+            if (File.Exists(c)) return c;
+        }
+        // Return the first candidate so the resulting error message points at the expected location.
+        return candidates[0];
+    }
+}

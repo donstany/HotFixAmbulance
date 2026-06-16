@@ -4,8 +4,9 @@ namespace HotFixAmbulance.Analysis;
 
 /// <summary>
 /// Pure heuristic analyzer. Groups logs by <c>(ExceptionType, NormalizedMessage, Endpoint)</c>,
-/// builds <see cref="ErrorGroup"/>s, fills <see cref="ErrorGroup.Purpose"/> using <see cref="DefaultRules"/>
-/// (or the rules supplied to the constructor), and returns groups ranked by severity/count.
+/// builds <see cref="ErrorGroup"/>s, fills <see cref="ErrorGroup.Suggestion"/> and
+/// <see cref="ErrorGroup.HowToFix"/> using <see cref="DefaultRules"/> (or the rules supplied to the
+/// constructor), and returns groups ranked by severity/count.
 /// </summary>
 public sealed class HeuristicAnalyzer : IAnalysisStrategy
 {
@@ -35,19 +36,19 @@ public sealed class HeuristicAnalyzer : IAnalysisStrategy
                 MessageNormalizer.Normalize(l.Message),
                 l.Endpoint ?? string.Empty))
             .Select(g => ErrorGroup.FromLogs(g.ToArray()))
-            .Select(WithPurpose)
+            .Select(EnrichWithRule)
             .ToArray();
 
         return ErrorGroup.RankBySeverity(groups);
     }
 
-    private ErrorGroup WithPurpose(ErrorGroup group)
+    private ErrorGroup EnrichWithRule(ErrorGroup group)
     {
         foreach (var rule in _rules)
         {
             if (rule.Matches(group))
             {
-                return group with { Purpose = rule.Purpose };
+                return group with { Suggestion = rule.Suggestion, HowToFix = rule.HowToFix };
             }
         }
         return group;

@@ -17,10 +17,17 @@ public sealed record ErrorGroup
     public required string? ServiceVersion { get; init; }
     public required int CorrelationIdCount { get; init; }
 
-    /// <summary>AI-derived column 11. Filled by the analysis layer; may be null before analysis.</summary>
-    public string? Purpose { get; init; }
+    /// <summary>
+    /// AI-derived column 11 ("Suggestion for Error" in the UI). A short interpretation of WHAT the
+    /// error means. Filled by the analysis layer; may be null before analysis or when no rule matches.
+    /// </summary>
+    public string? Suggestion { get; init; }
 
-    /// <summary>AI-derived column 12. Filled by the git-insights layer; may be null before lookup.</summary>
+    /// <summary>
+    /// AI-derived column 12. A concrete remediation hint (HOW to fix). Baseline value comes from the
+    /// matched <see cref="AnalysisRule"/>; the git-insights layer may override it with recent
+    /// <c>origin/main</c> commits when they exist. May be null when no rule matches.
+    /// </summary>
     public string? HowToFix { get; init; }
 
     public static ErrorGroup FromLogs(IReadOnlyCollection<LogEntry> logs)

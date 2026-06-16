@@ -26,9 +26,9 @@ public static class CliRenderer
             await writer.WriteLineAsync(
                 $"#{rank,-2} [{g.Severity}] x{g.Count} {g.ExceptionType ?? "(no type)"} @ {g.Endpoint ?? "(no endpoint)"}")
                 .ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(g.Purpose))
+            if (!string.IsNullOrWhiteSpace(g.Suggestion))
             {
-                await writer.WriteLineAsync($"    Purpose: {g.Purpose}").ConfigureAwait(false);
+                await writer.WriteLineAsync($"    Suggestion: {g.Suggestion}").ConfigureAwait(false);
             }
             if (!string.IsNullOrWhiteSpace(g.HowToFix))
             {

@@ -25,7 +25,7 @@ function truncate(value: string | null, max = 80): string {
 }
 
 /**
- * 12-column triage table: 10 raw facts + Purpose + How-to-Fix.
+ * 12-column triage table: 10 raw facts + Suggestion-for-Error + How-to-Fix.
  * Severity column is sorted by numeric rank so Fatal > Error > Warning.
  */
 export function TriageTable({ groups }: { groups: ErrorGroup[] }) {
@@ -50,9 +50,9 @@ export function TriageTable({ groups }: { groups: ErrorGroup[] }) {
       columnHelper.accessor('httpStatus', { header: 'HTTP', cell: (i) => i.getValue() ?? '—' }),
       columnHelper.accessor('serviceVersion', { header: 'Version', cell: (i) => i.getValue() ?? '—' }),
       columnHelper.accessor('correlationIdCount', { header: 'Correlations' }),
-      columnHelper.accessor('purpose', {
-        header: 'Purpose',
-        cell: (i) => <span data-testid="purpose">{i.getValue() ?? '—'}</span>,
+      columnHelper.accessor('suggestion', {
+        header: 'Suggestion for Error',
+        cell: (i) => <span data-testid="suggestion">{i.getValue() ?? '—'}</span>,
       }),
       columnHelper.accessor('howToFix', {
         header: 'How to fix',
