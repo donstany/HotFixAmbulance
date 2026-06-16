@@ -2,6 +2,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HotFixAmbulance.Core\HotFixAmbulance.Core.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.Elastic\HotFixAmbulance.Elastic.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.Analysis\HotFixAmbulance.Analysis.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.GitInsights\HotFixAmbulance.GitInsights.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.Persistence\HotFixAmbulance.Persistence.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
