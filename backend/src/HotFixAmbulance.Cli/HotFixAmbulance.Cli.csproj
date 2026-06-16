@@ -1,7 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\HotFixAmbulance.Analysis\HotFixAmbulance.Analysis.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.Api\HotFixAmbulance.Api.csproj" />
     <ProjectReference Include="..\HotFixAmbulance.Core\HotFixAmbulance.Core.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.Elastic\HotFixAmbulance.Elastic.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.GitInsights\HotFixAmbulance.GitInsights.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.Persistence\HotFixAmbulance.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

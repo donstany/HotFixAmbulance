@@ -24,7 +24,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\HotFixAmbulance.Analysis\HotFixAmbulance.Analysis.csproj" />
     <ProjectReference Include="..\..\src\HotFixAmbulance.Api\HotFixAmbulance.Api.csproj" />
-    <ProjectReference Include="..\..\src\HotFixAmbulance.Cli\HotFixAmbulance.Cli.csproj" />
     <ProjectReference Include="..\..\src\HotFixAmbulance.Core\HotFixAmbulance.Core.csproj" />
     <ProjectReference Include="..\..\src\HotFixAmbulance.Elastic\HotFixAmbulance.Elastic.csproj" />
     <ProjectReference Include="..\..\src\HotFixAmbulance.GitInsights\HotFixAmbulance.GitInsights.csproj" />
