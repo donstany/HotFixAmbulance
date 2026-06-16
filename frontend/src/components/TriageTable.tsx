@@ -41,7 +41,32 @@ export function TriageTable({ groups }: { groups: ErrorGroup[] }) {
       columnHelper.accessor('count', { header: 'Count' }),
       columnHelper.accessor('firstSeenUtc', { header: 'First seen', cell: (i) => shortIso(i.getValue()) }),
       columnHelper.accessor('lastSeenUtc', { header: 'Last seen', cell: (i) => shortIso(i.getValue()) }),
-      columnHelper.accessor('exceptionType', { header: 'Exception', cell: (i) => i.getValue() ?? '—' }),
+      columnHelper.accessor('exceptionType', {
+        header: 'Exception',
+        cell: (i) => {
+          const row = i.row.original;
+          const ex = i.getValue();
+          const frame =
+            row.stackFile && row.stackLine
+              ? `${row.stackFile}:${row.stackLine}`
+              : row.stackFile ?? null;
+          return (
+            <div className="space-y-0.5">
+              <div>{ex ?? '—'}</div>
+              {frame && (
+                <div
+                  data-testid="stackframe"
+                  className="font-mono text-[11px] text-slate-500"
+                  title={row.stackSymbol ?? undefined}
+                >
+                  {frame}
+                  {row.stackSymbol ? ` · ${row.stackSymbol}` : ''}
+                </div>
+              )}
+            </div>
+          );
+        },
+      }),
       columnHelper.accessor('message', {
         header: 'Message',
         cell: (i) => <span title={i.getValue() ?? ''}>{truncate(i.getValue())}</span>,

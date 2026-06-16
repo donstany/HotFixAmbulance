@@ -93,16 +93,17 @@ public sealed class FixHintBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsync_caps_results_to_three()
+    public async Task BuildAsync_includes_all_commits_up_to_max()
     {
         var (sut, _, reader, _) = BuildSut();
-        var commits = Enumerable.Range(1, 5)
-            .Select(i => new CommitSummary(
-                Sha: new string((char)('a' + i), 40),
-                When: new DateTimeOffset(2026, 1, i, 0, 0, 0, TimeSpan.Zero),
+        // SHAs must be 40 chars and differ in the first 7 so ShortSha produces unique tokens.
+        var prefixes = new[] { "abc1234", "def5678", "ace9876", "feedbee", "deadbee" };
+        var commits = prefixes.Select((p, i) => new CommitSummary(
+                Sha: p + new string('0', 40 - p.Length),
+                When: new DateTimeOffset(2026, 1, i + 1, 0, 0, 0, TimeSpan.Zero),
                 Author: $"A{i}",
                 Subject: $"Subject {i}",
-                Files: []))
+                Files: ["src/file.cs"]))
             .ToArray();
         reader.SearchCommitsAsync(Arg.Any<string>(), Arg.Any<GitSearchQuery>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>(commits));
@@ -110,8 +111,56 @@ public sealed class FixHintBuilderTests
         var hint = await sut.BuildAsync("checkout-api", MakeGroup());
 
         hint.Should().NotBeNull();
-        var lines = hint!.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        lines.Should().HaveCount(3);
+        // The first three commits are surfaced; the rest are dropped (MaxResults = 3 by default).
+        hint!.Should().Contain("abc1234");
+        hint.Should().Contain("def5678");
+        hint.Should().Contain("ace9876");
+        hint.Should().NotContain("feedbee");
+        hint.Should().NotContain("deadbee");
+    }
+
+    [Fact]
+    public async Task BuildAsync_emits_file_line_and_symbol_header_when_stack_info_present()
+    {
+        var (sut, _, reader, _) = BuildSut();
+        var commit = new CommitSummary(
+            Sha: "0123456789abcdef0123456789abcdef01234567",
+            When: new DateTimeOffset(2026, 6, 16, 0, 0, 0, TimeSpan.Zero),
+            Author: "Stan",
+            Subject: "feat: order email notification",
+            Files: ["demo-api/BrokenServices.cs"]);
+        reader.SearchCommitsAsync(Arg.Any<string>(), Arg.Any<GitSearchQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>([commit]));
+
+        var group = MakeGroup() with
+        {
+            StackFile = "BrokenServices.cs",
+            StackSymbol = "OrderProcessor.GetCustomerEmail",
+            StackLine = 54,
+        };
+        var hint = await sut.BuildAsync("checkout-api", group);
+
+        hint.Should().NotBeNull();
+        hint!.Should().Contain("demo-api/BrokenServices.cs:54");
+        hint.Should().Contain("OrderProcessor.GetCustomerEmail");
+        hint.Should().Contain("0123456");
+        hint.Should().Contain("Stan");
+        hint.Should().Contain("feat: order email notification");
+    }
+
+    [Fact]
+    public async Task BuildAsync_passes_stack_file_as_preferred_file_to_reader()
+    {
+        var (sut, _, reader, _) = BuildSut();
+        GitSearchQuery? captured = null;
+        reader.SearchCommitsAsync(Arg.Any<string>(), Arg.Do<GitSearchQuery>(q => captured = q), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>([]));
+
+        var group = MakeGroup() with { StackFile = "BrokenServices.cs" };
+        await sut.BuildAsync("checkout-api", group);
+
+        captured.Should().NotBeNull();
+        captured!.PreferredFile.Should().Be("BrokenServices.cs");
     }
 
     [Fact]

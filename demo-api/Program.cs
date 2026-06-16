@@ -1,11 +1,18 @@
+using System.Diagnostics;
 using System.Reflection;
+using DemoApi;
 using Elastic.CommonSchema.Serilog;
 using Serilog;
+using Serilog.Context;
 using Serilog.Sinks.Elasticsearch;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddEnvironmentVariables(prefix: "HFA_");
+
+builder.Services.AddSingleton<CustomerRepository>();
+builder.Services.AddSingleton<OrderProcessor>();
+builder.Services.AddSingleton<PaymentGateway>();
 
 var applicationName = string.IsNullOrWhiteSpace(builder.Environment.ApplicationName)
     ? "demo-api"
@@ -61,49 +68,74 @@ app.UseSerilogRequestLogging(opts =>
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-// 1) NullReferenceException on certain payloads.
-app.MapPost("/orders", (OrderRequest? req, ILogger<Program> log) =>
+// 1) Real NullReferenceException on a missing customer field (".Email on a null Customer").
+//    The stack frame of the throw points at OrderProcessor.GetCustomerEmail in BrokenServices.cs,
+//    which is what the triage tool's git-insights layer keys off of.
+app.MapPost("/orders", (OrderRequest? req, OrderProcessor processor, ILogger<Program> log) =>
 {
-    if (req is null || string.IsNullOrWhiteSpace(req.CustomerId))
+    var request = req ?? new OrderRequest(null, 0m);
+    try
     {
-        // Intentional NRE for the triage demo.
-        string? cart = null;
-        log.LogError("Order request rejected because cart could not be resolved for null customer");
-        return Results.Problem(detail: cart!.ToString(), statusCode: 500);
+        var orderId = processor.PlaceOrder(request);
+        return Results.Accepted($"/orders/{orderId}", new { ok = true });
     }
-
-    log.LogInformation("Order accepted for customer {CustomerId}", req.CustomerId);
-    return Results.Accepted($"/orders/{Guid.NewGuid()}", new { ok = true });
+    catch (Exception ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "POST /orders failed: {Message}", ex.Message);
+        }
+        return Results.Problem(ex.Message, statusCode: 500, title: ex.GetType().Name);
+    }
 });
 
-// 2) Simulated upstream timeout.
-app.MapGet("/payments/{id}", async (string id, ILogger<Program> log, CancellationToken ct) =>
+// 2) Simulated upstream timeout (deadline < provider p99).
+app.MapGet("/payments/{id}", async (string id, PaymentGateway gateway, ILogger<Program> log, CancellationToken ct) =>
 {
-    if (id.Length % 2 == 0)
+    try
     {
-        try
-        {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromMilliseconds(50));
-            await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
-        }
-        catch (OperationCanceledException ex)
-        {
-            log.LogError(ex, "Payment provider call timed out for id={PaymentId}", id);
-            return Results.Problem("Operation has timed out talking to payment provider.", statusCode: 504);
-        }
+        var amount = await gateway.AuthorizeAsync(id, ct);
+        return Results.Ok(new { id, amount });
     }
-
-    return Results.Ok(new { id, amount = 42m });
+    catch (OperationCanceledException ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "Payment provider call timed out for id={PaymentId} after 50ms deadline", id);
+        }
+        return Results.Problem("Operation has timed out talking to payment provider.", statusCode: 504);
+    }
 });
 
-// 3) Negative ids -> 500.
+// 3) Negative ids -> ArgumentOutOfRangeException -> 500.
 app.MapGet("/users/{id:int}", (int id, ILogger<Program> log) =>
 {
     if (id < 0)
     {
-        log.LogError("User lookup with invalid id {UserId} threw ArgumentOutOfRangeException", id);
-        throw new ArgumentOutOfRangeException(nameof(id), id, "id must be non-negative");
+        try
+        {
+            throw new ArgumentOutOfRangeException(nameof(id), id, "id must be non-negative");
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            var (file, symbol, line) = ResolveFailingFrame(ex);
+            using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+            using (LogContext.PushProperty("StackFile", file))
+            using (LogContext.PushProperty("StackSymbol", symbol))
+            using (LogContext.PushProperty("StackLine", line))
+            {
+                log.LogError(ex, "User lookup with invalid id {UserId}", id);
+            }
+            return Results.Problem(ex.Message, statusCode: 500, title: ex.GetType().Name);
+        }
     }
 
     return Results.Ok(new { id, name = $"user-{id}" });
@@ -111,4 +143,33 @@ app.MapGet("/users/{id:int}", (int id, ILogger<Program> log) =>
 
 app.Run();
 
-internal sealed record OrderRequest(string? CustomerId, decimal Amount);
+// --- helpers ---
+
+static (string? File, string? Symbol, int? Line) ResolveFailingFrame(Exception ex)
+{
+    var trace = new StackTrace(ex, fNeedFileInfo: true);
+    foreach (var frame in trace.GetFrames())
+    {
+        var method = frame.GetMethod();
+        if (method?.DeclaringType is null)
+        {
+            continue;
+        }
+        var ns = method.DeclaringType.Namespace ?? string.Empty;
+        // Keep only frames in our own assemblies so we don't pick framework code.
+        if (!ns.StartsWith("DemoApi", StringComparison.Ordinal) && ns != string.Empty)
+        {
+            continue;
+        }
+        var file = frame.GetFileName();
+        if (string.IsNullOrEmpty(file))
+        {
+            continue;
+        }
+        var symbol = $"{method.DeclaringType.Name}.{method.Name}";
+        var line = frame.GetFileLineNumber();
+        return (Path.GetFileName(file), symbol, line > 0 ? line : null);
+    }
+    return (null, null, null);
+}
+

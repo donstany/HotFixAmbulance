@@ -15,6 +15,9 @@ const SAMPLE: ErrorGroup[] = [
     httpStatus: 504,
     serviceVersion: '1.1.0',
     correlationIdCount: 2,
+    stackFile: 'PaymentGateway.cs',
+    stackSymbol: 'PaymentGateway.AuthorizeAsync',
+    stackLine: 88,
     suggestion: 'Upstream timeout',
     howToFix: 'abcd123 (2026-06-15) — bump HttpClient timeout',
   },
@@ -29,6 +32,9 @@ const SAMPLE: ErrorGroup[] = [
     httpStatus: 500,
     serviceVersion: '1.1.0',
     correlationIdCount: 1,
+    stackFile: null,
+    stackSymbol: null,
+    stackLine: null,
     suggestion: 'OOM under load',
     howToFix: 'beef456 (2026-06-14) — tune GC settings',
   },
@@ -68,5 +74,12 @@ describe('<TriageTable />', () => {
     render(<TriageTable groups={[{ ...SAMPLE[0], message: long }]} />);
     const cell = screen.getByTitle(long);
     expect(cell.textContent ?? '').toHaveLength(81); // 80 chars + ellipsis
+  });
+
+  it('renders the stack frame (file:line · symbol) under the exception when present', () => {
+    render(<TriageTable groups={SAMPLE} />);
+    const frame = screen.getByTestId('stackframe');
+    expect(frame.textContent).toMatch(/PaymentGateway\.cs:88/);
+    expect(frame.textContent).toMatch(/PaymentGateway\.AuthorizeAsync/);
   });
 });

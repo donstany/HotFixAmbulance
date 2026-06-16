@@ -12,6 +12,10 @@ export interface ErrorGroup {
   httpStatus: number | null;
   serviceVersion: string | null;
   correlationIdCount: number;
+  /** Topmost user-code frame, used by the UI's exception cell and the git-evidence column. */
+  stackFile: string | null;
+  stackSymbol: string | null;
+  stackLine: number | null;
   /** Renders in the UI's "Suggestion for Error" column. WHAT the error means. */
   suggestion: string | null;
   /** Renders in the UI's "How to fix" column. HOW to remediate it. */

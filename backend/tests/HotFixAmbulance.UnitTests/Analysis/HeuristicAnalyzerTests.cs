@@ -151,13 +151,17 @@ public sealed class HeuristicAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_leaves_suggestion_and_howtofix_null_when_no_rule_matches()
+    public void Analyze_still_emits_suggestion_when_no_rule_matches_but_leaves_howtofix_null()
     {
         var sut = new HeuristicAnalyzer();
         var result = sut.Analyze(
             [Make(exceptionType: "App.Custom", message: "something unusual", status: 200, severity: Severity.Warning)]);
 
-        result[0].Suggestion.Should().BeNull();
+        // Suggestion is now derived from the concrete facts of the group (exception type +
+        // endpoint + count), so it is always populated -- not just when a rule matches.
+        result[0].Suggestion.Should().NotBeNullOrWhiteSpace();
+        result[0].Suggestion!.Should().Contain("Custom");
+        // HowToFix still requires a matching rule (or the git-insights layer to override).
         result[0].HowToFix.Should().BeNull();
     }
 

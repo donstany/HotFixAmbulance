@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using HotFixAmbulance.Core;
 
 namespace HotFixAmbulance.Elastic;
@@ -41,6 +42,20 @@ internal static class SerilogDocumentMapper
         var correlation = TryGetNestedString(doc, "fields", "CorrelationId", out var corr) ? corr : null;
         var httpStatus = TryGetNestedInt(doc, "fields", "StatusCode", out var sc) ? sc : (int?)null;
 
+        // Stack frame can arrive in two shapes:
+        //   1) Pre-extracted by the producer: fields.StackFile / fields.StackSymbol / fields.StackLine
+        //   2) Raw ECS exception trace at the root: error.stack_trace -> parse the top user frame.
+        var stackFile = TryGetNestedString(doc, "fields", "StackFile", out var sf) ? sf : null;
+        var stackSymbol = TryGetNestedString(doc, "fields", "StackSymbol", out var ss) ? ss : null;
+        var stackLine = TryGetNestedInt(doc, "fields", "StackLine", out var sl) ? sl : (int?)null;
+        if (stackFile is null && stackSymbol is null && stackLine is null)
+        {
+            if (TryGetNestedString(doc, "error", "stack_trace", out var trace) && !string.IsNullOrEmpty(trace))
+            {
+                (stackFile, stackSymbol, stackLine) = ParseTopUserFrame(trace);
+            }
+        }
+
         return new LogEntry
         {
             TimestampUtc = timestamp,
@@ -53,7 +68,41 @@ internal static class SerilogDocumentMapper
             Endpoint = path,
             HttpStatus = httpStatus,
             CorrelationId = correlation,
+            StackFile = stackFile,
+            StackSymbol = stackSymbol,
+            StackLine = stackLine,
         };
+    }
+
+    // Matches a single CLR stack frame line, e.g.
+    //   at DemoApi.OrderProcessor.GetCustomerEmail(String customerId) in C:\repo\demo-api\BrokenServices.cs:line 53
+    // The file path is captured non-greedily so Windows drive-letter paths ("C:\repo\...")
+    // and POSIX paths both match.
+    private static readonly Regex FrameRegex = new(
+        @"^\s*at\s+(?<sym>[\w\.<>`]+(?:\.[\w<>`]+)+)\s*\([^)]*\)(?:\s+in\s+(?<file>.+?):line\s+(?<line>\d+))?",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+
+    private static (string? File, string? Symbol, int? Line) ParseTopUserFrame(string trace)
+    {
+        foreach (Match m in FrameRegex.Matches(trace))
+        {
+            var sym = m.Groups["sym"].Value;
+            // Skip framework frames so we surface user code.
+            if (sym.StartsWith("System.", StringComparison.Ordinal)
+                || sym.StartsWith("Microsoft.", StringComparison.Ordinal)
+                || sym.StartsWith("Serilog.", StringComparison.Ordinal))
+            {
+                continue;
+            }
+            var file = m.Groups["file"].Success ? Path.GetFileName(m.Groups["file"].Value.Trim()) : null;
+            var line = m.Groups["line"].Success && int.TryParse(m.Groups["line"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l)
+                ? l
+                : (int?)null;
+            // Collapse fully-qualified to "Type.Method" for the suggestion text.
+            var lastTwo = string.Join('.', sym.Split('.').TakeLast(2));
+            return (file, lastTwo, line);
+        }
+        return (null, null, null);
     }
 
     private static bool TryGetString(JsonElement doc, string property, out string? value)

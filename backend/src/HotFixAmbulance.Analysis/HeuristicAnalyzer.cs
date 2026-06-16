@@ -44,14 +44,20 @@ public sealed class HeuristicAnalyzer : IAnalysisStrategy
 
     private ErrorGroup EnrichWithRule(ErrorGroup group)
     {
+        // Suggestion is always derived from the concrete facts of THIS group (exception type,
+        // stack symbol, parsed message, endpoint, count) so the UI's "Suggestion for Error"
+        // column reads like an AI triage note instead of a static rule label.
+        var suggestion = SuggestionBuilder.Build(group);
+
         foreach (var rule in _rules)
         {
             if (rule.Matches(group))
             {
-                return group with { Suggestion = rule.Suggestion, HowToFix = rule.HowToFix };
+                return group with { Suggestion = suggestion, HowToFix = rule.HowToFix };
             }
         }
-        return group;
+        // Even without a matching rule, surface the dynamic suggestion so the row is informative.
+        return group with { Suggestion = suggestion };
     }
 
     private readonly record struct GroupKey(string ExceptionType, string NormalizedMessage, string Endpoint);

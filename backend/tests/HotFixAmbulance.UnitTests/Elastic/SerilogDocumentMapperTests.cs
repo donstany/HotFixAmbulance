@@ -85,6 +85,55 @@ public sealed class SerilogDocumentMapperTests
         InvokeTryMap(element).Should().BeNull();
     }
 
+    [Fact]
+    public void TryMap_extracts_stack_frame_from_pre_extracted_fields()
+    {
+        const string json = """
+        {
+          "@timestamp": "2026-06-16T11:30:00.000Z",
+          "level": "Error",
+          "fields": {
+            "Application": "demo-api",
+            "ExceptionType": "System.NullReferenceException",
+            "StackFile": "BrokenServices.cs",
+            "StackSymbol": "OrderProcessor.GetCustomerEmail",
+            "StackLine": 54
+          }
+        }
+        """;
+        var element = JsonDocument.Parse(json).RootElement;
+
+        var entry = InvokeTryMap(element);
+
+        entry.Should().NotBeNull();
+        entry!.StackFile.Should().Be("BrokenServices.cs");
+        entry.StackSymbol.Should().Be("OrderProcessor.GetCustomerEmail");
+        entry.StackLine.Should().Be(54);
+    }
+
+    [Fact]
+    public void TryMap_parses_top_user_frame_from_ecs_error_stack_trace()
+    {
+        const string json = """
+        {
+          "@timestamp": "2026-06-16T11:30:00.000Z",
+          "level": "Error",
+          "fields": { "Application": "demo-api" },
+          "error": {
+            "stack_trace": "System.NullReferenceException: Object reference not set to an instance of an object.\n   at DemoApi.OrderProcessor.GetCustomerEmail(String customerId) in C:\\repo\\demo-api\\BrokenServices.cs:line 54\n   at DemoApi.OrderProcessor.PlaceOrder(OrderRequest req) in C:\\repo\\demo-api\\BrokenServices.cs:line 62\n   at Program.<>c.<<Main>$>b__0_5(OrderRequest req, OrderProcessor processor, ILogger`1 log) in C:\\repo\\demo-api\\Program.cs:line 74"
+          }
+        }
+        """;
+        var element = JsonDocument.Parse(json).RootElement;
+
+        var entry = InvokeTryMap(element);
+
+        entry.Should().NotBeNull();
+        entry!.StackFile.Should().Be("BrokenServices.cs");
+        entry.StackSymbol.Should().Be("OrderProcessor.GetCustomerEmail");
+        entry.StackLine.Should().Be(54);
+    }
+
     private static LogEntry? InvokeTryMap(JsonElement element)
     {
         // SerilogDocumentMapper is internal; exposed to tests via InternalsVisibleTo.

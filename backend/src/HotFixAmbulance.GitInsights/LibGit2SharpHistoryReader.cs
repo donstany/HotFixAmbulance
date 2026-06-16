@@ -27,11 +27,38 @@ public sealed class LibGit2SharpHistoryReader : IGitHistoryReader
         using var repo = new Repository(repoPath);
 
         var keywords = query.Keywords.ToArray();
+        var preferredFile = query.PreferredFile;
         var filter = new CommitFilter
         {
             SortBy = CommitSortStrategies.Topological | CommitSortStrategies.Time,
         };
 
+        // Pass 1: commits that touched the preferred source file (e.g. BrokenServices.cs).
+        //         These are the strongest evidence -- they point at the exact file from the stack trace.
+        if (!string.IsNullOrWhiteSpace(preferredFile))
+        {
+            foreach (var commit in repo.Commits.QueryBy(filter))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var files = ChangedFiles(commit, repo);
+                if (!files.Any(f => EndsWithFile(f, preferredFile)))
+                {
+                    continue;
+                }
+                results.Add(new CommitSummary(
+                    Sha: commit.Sha,
+                    When: commit.Author.When,
+                    Author: commit.Author.Name,
+                    Subject: commit.MessageShort ?? string.Empty,
+                    Files: files));
+                if (results.Count >= query.MaxResults)
+                {
+                    return Task.FromResult<IReadOnlyList<CommitSummary>>(results);
+                }
+            }
+        }
+
+        // Pass 2: keyword search against subject/body/paths.
         foreach (var commit in repo.Commits.QueryBy(filter))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -39,7 +66,11 @@ public sealed class LibGit2SharpHistoryReader : IGitHistoryReader
             {
                 continue;
             }
-
+            // De-dup against pass 1.
+            if (results.Any(r => r.Sha == commit.Sha))
+            {
+                continue;
+            }
             results.Add(new CommitSummary(
                 Sha: commit.Sha,
                 When: commit.Author.When,
@@ -55,6 +86,11 @@ public sealed class LibGit2SharpHistoryReader : IGitHistoryReader
 
         return Task.FromResult<IReadOnlyList<CommitSummary>>(results);
     }
+
+    private static bool EndsWithFile(string path, string fileName) =>
+        path.EndsWith('/' + fileName, StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith('\\' + fileName, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(path, fileName, StringComparison.OrdinalIgnoreCase);
 
     private static bool Matches(Commit commit, string[] keywords, Repository repo, out IReadOnlyList<string> files)
     {

@@ -5,15 +5,20 @@ using HotFixAmbulance.Core;
 namespace HotFixAmbulance.GitInsights;
 
 /// <summary>
-/// Produces the column-12 <c>HowToFix</c> hint for an <see cref="ErrorGroup"/> by querying the
-/// related API's git history for commits that mention the same exception, endpoint, or symptom.
+/// Produces the "How to fix" column for an <see cref="ErrorGroup"/> by mining the API's git
+/// history. The output is shaped like a short Claude-Code-style report:
+/// <code>
+///   demo-api/BrokenServices.cs:54 · OrderProcessor.GetCustomerEmail
+///     └ likely introduced in 0f7ff6e (2026-06-16) by Stanislav Stanev
+///     └ "refactor(triage): split Suggestion from HowToFix; fix Api config 500"
+///     └ related: b773ed7 (2026-06-16) "Phase 8: demo-api with Serilog instrumentation"
+/// </code>
+/// When the analyzer surfaced a <see cref="ErrorGroup.StackFile"/>, that file is searched first
+/// because it is the strongest evidence (the actual code path that threw). Otherwise the builder
+/// falls back to keyword search over commit subject + body + paths.
 /// </summary>
 public sealed class FixHintBuilder
 {
-    /// <summary>
-    /// Patterns we look for in <see cref="ErrorGroup.Message"/>. The key is the substring to search,
-    /// the value is the canonical keyword to emit so that git history search uses one stable term.
-    /// </summary>
     private static readonly (string Pattern, string Canonical)[] MessageTokens =
     {
         ("deadlock", "deadlock"),
@@ -60,35 +65,81 @@ public sealed class FixHintBuilder
         {
             return null;
         }
+
         var keywords = ExtractKeywords(group);
-        if (keywords.Count == 0)
+        var preferredFile = group.StackFile;
+        if (keywords.Count == 0 && string.IsNullOrWhiteSpace(preferredFile))
         {
             return null;
         }
 
-        var query = new GitSearchQuery(keywords, MaxResults: 3);
+        var query = new GitSearchQuery(keywords, MaxResults: 3, PreferredFile: preferredFile);
         var commits = await _reader.SearchCommitsAsync(repoPath, query, cancellationToken).ConfigureAwait(false);
         if (commits.Count == 0)
         {
             return null;
         }
 
-        var sb = new StringBuilder();
-        foreach (var c in commits.Take(3))
-        {
-            if (sb.Length > 0)
-            {
-                sb.Append('\n');
-            }
-            sb.AppendFormat(
-                CultureInfo.InvariantCulture,
-                "{0} ({1:yyyy-MM-dd}) — {2}",
-                c.Sha.Length >= 7 ? c.Sha[..7] : c.Sha,
-                c.When,
-                c.Subject);
-        }
-        return sb.ToString();
+        // Defense-in-depth: cap to MaxResults even when the reader returned more (some
+        // mock implementations ignore the cap; the production LibGit2 reader honours it).
+        var capped = commits.Take(query.MaxResults).ToArray();
+        return FormatHint(group, capped);
     }
+
+    private static string FormatHint(ErrorGroup group, CommitSummary[] commits)
+    {
+        var top = commits[0];
+        var sb = new StringBuilder();
+
+        // Header: "<repo-relative-path>:<line> · <symbol>"
+        var displayPath = ResolveDisplayPath(top.Files, group.StackFile) ?? group.StackFile ?? "(unknown file)";
+        sb.Append(displayPath);
+        if (group.StackLine is int line)
+        {
+            sb.Append(':').Append(line.ToString(CultureInfo.InvariantCulture));
+        }
+        if (!string.IsNullOrWhiteSpace(group.StackSymbol))
+        {
+            sb.Append(" · ").Append(group.StackSymbol);
+        }
+        sb.AppendLine();
+
+        // Top commit attribution.
+        sb.Append("  └ likely introduced in ").Append(ShortSha(top.Sha))
+          .Append(' ').Append('(').Append(top.When.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(')')
+          .Append(" by ").Append(top.Author).AppendLine();
+        sb.Append("  └ \"").Append(top.Subject).Append('"').AppendLine();
+
+        // Related commits.
+        foreach (var c in commits.Skip(1))
+        {
+            sb.Append("  └ related: ").Append(ShortSha(c.Sha))
+              .Append(' ').Append('(').Append(c.When.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append(')')
+              .Append(" \"").Append(c.Subject).Append('"').AppendLine();
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string? ResolveDisplayPath(IReadOnlyList<string> files, string? stackFile)
+    {
+        if (string.IsNullOrWhiteSpace(stackFile))
+        {
+            return files.Count > 0 ? files[0] : null;
+        }
+        foreach (var f in files)
+        {
+            if (f.EndsWith('/' + stackFile, StringComparison.OrdinalIgnoreCase)
+                || f.EndsWith('\\' + stackFile, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(f, stackFile, StringComparison.OrdinalIgnoreCase))
+            {
+                return f;
+            }
+        }
+        return files.Count > 0 ? files[0] : null;
+    }
+
+    private static string ShortSha(string sha) => sha.Length >= 7 ? sha[..7] : sha;
 
     private static HashSet<string> ExtractKeywords(ErrorGroup group)
     {
@@ -100,6 +151,18 @@ public sealed class FixHintBuilder
             if (!string.IsNullOrEmpty(leaf))
             {
                 set.Add(leaf);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(group.StackSymbol))
+        {
+            // e.g. "OrderProcessor.GetCustomerEmail" -> add both halves.
+            foreach (var part in group.StackSymbol.Split('.', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (part.Length >= 3)
+                {
+                    set.Add(part);
+                }
             }
         }
 

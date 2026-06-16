@@ -18,6 +18,23 @@ public sealed record ErrorGroup
     public required int CorrelationIdCount { get; init; }
 
     /// <summary>
+    /// File name of the topmost user-code frame from the most recent occurrence in this group,
+    /// e.g. <c>OrderProcessor.cs</c>. Carried forward from the representative <see cref="LogEntry"/>
+    /// so the git-insights layer can locate the offending source file.
+    /// </summary>
+    public string? StackFile { get; init; }
+
+    /// <summary>
+    /// Fully-qualified symbol of the topmost user-code frame, e.g. <c>OrderProcessor.GetCustomerEmail</c>.
+    /// </summary>
+    public string? StackSymbol { get; init; }
+
+    /// <summary>
+    /// Line number of the topmost user-code frame, when available.
+    /// </summary>
+    public int? StackLine { get; init; }
+
+    /// <summary>
     /// AI-derived column 11 ("Suggestion for Error" in the UI). A short interpretation of WHAT the
     /// error means. Filled by the analysis layer; may be null before analysis or when no rule matches.
     /// </summary>
@@ -61,6 +78,9 @@ public sealed record ErrorGroup
             HttpStatus = representative.HttpStatus,
             ServiceVersion = representative.ServiceVersion,
             CorrelationIdCount = distinctCorrelations,
+            StackFile = representative.StackFile,
+            StackSymbol = representative.StackSymbol,
+            StackLine = representative.StackLine,
         };
     }
 
