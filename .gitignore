@@ -1,0 +1,91 @@
+# =====================================================================
+# HotFixAmbulance — .gitignore
+# =====================================================================
+
+# ---------- OS ----------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------- IDE / Editors ----------
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ---------- Node / Frontend ----------
+node_modules/
+dist/
+dist-ssr/
+build/
+.cache/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp.*
+.eslintcache
+.parcel-cache/
+.vite/
+playwright-report/
+test-results/
+.playwright/
+
+# ---------- .NET ----------
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+*.dll.config
+*.csproj.user
+*.vbproj.user
+*.fsproj.user
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.binlog
+*.tlog
+
+# Test / coverage
+TestResults/
+coverage*.xml
+coverage*.json
+coverage*.info
+*.coverage
+*.coveragexml
+*.opencover.xml
+*.cobertura.xml
+*.trx
+
+# Tooling
+.nuget/
+*.nupkg
+*.snupkg
+
+# User secrets fallback files (the real store is %APPDATA%\Microsoft\UserSecrets)
+secrets.json
+appsettings.*.local.json
+
+# ---------- Environment / Secrets ----------
+.env
+.env.*
+!.env.example
+
+# ---------- HotFixAmbulance runtime caches ----------
+.hotfix-ambulance/
+**/repos-cache/
+docs/dev-log.local.md
