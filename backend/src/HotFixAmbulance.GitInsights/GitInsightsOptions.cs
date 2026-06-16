@@ -11,8 +11,10 @@ public sealed class GitInsightsOptions
     public string? AuthToken { get; set; }
 
     public string ResolvedCacheRoot() =>
-        CacheRoot ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "HotFixAmbulance",
-            "repos");
+        string.IsNullOrWhiteSpace(CacheRoot)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HotFixAmbulance",
+                "repos")
+            : CacheRoot;
 }

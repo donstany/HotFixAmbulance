@@ -51,7 +51,15 @@ public sealed class FixHintBuilder
             return null;
         }
 
-        var repoPath = await _cache.EnsureUpToDateAsync(entry, cancellationToken).ConfigureAwait(false);
+        string repoPath;
+        try
+        {
+            repoPath = await _cache.EnsureUpToDateAsync(entry, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            return null;
+        }
         var keywords = ExtractKeywords(group);
         if (keywords.Count == 0)
         {

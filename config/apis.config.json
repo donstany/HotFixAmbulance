@@ -1,0 +1,8 @@
+{
+  "apis": {
+    "demo-api": {
+      "url": "file:///C:/Users/stanislav.stanev/Softuni/HotFixAmbulance",
+      "branch": "main"
+    }
+  }
+}
