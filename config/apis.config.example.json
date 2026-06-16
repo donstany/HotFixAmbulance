@@ -1,0 +1,13 @@
+{
+  "$schema": "./apis.config.schema.json",
+  "apis": {
+    "checkout-api": {
+      "url": "https://github.com/myPOStech/checkout-api.git",
+      "branch": "main"
+    },
+    "orders-api": {
+      "url": "https://github.com/myPOStech/orders-api.git",
+      "branch": "main"
+    }
+  }
+}
