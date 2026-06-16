@@ -89,3 +89,6 @@ appsettings.*.local.json
 .hotfix-ambulance/
 **/repos-cache/
 docs/dev-log.local.md
+demo-api/logs/
+**/hotfix.db
+**/hotfix.db-*
