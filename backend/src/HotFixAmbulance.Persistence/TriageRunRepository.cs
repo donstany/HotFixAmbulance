@@ -20,6 +20,13 @@ public sealed class TriageRunRepository : ITriageRunRepository
         return run;
     }
 
+    public Task<TriageRun?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return _db.TriageRuns
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+    }
+
     public Task<TriageRun?> GetLatestAsync(string apiName, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(apiName);

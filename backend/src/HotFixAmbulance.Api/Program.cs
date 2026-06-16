@@ -1,5 +1,8 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using HotFixAmbulance.Analysis;
 using HotFixAmbulance.Api;
+using HotFixAmbulance.Core;
 using HotFixAmbulance.Elastic;
 using HotFixAmbulance.GitInsights;
 using HotFixAmbulance.Persistence;
@@ -9,6 +12,11 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddEnvironmentVariables(prefix: "HFA_");
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHotFixElastic(builder.Configuration);
@@ -62,7 +70,16 @@ app.MapGet("/api/triage/{apiName}/latest", async (
     CancellationToken ct) =>
 {
     var run = await repo.GetLatestAsync(apiName, ct);
-    return run is null ? Results.NotFound() : Results.Ok(run);
+    return run is null ? Results.NotFound() : Results.Ok(Rehydrate(run));
+});
+
+app.MapGet("/api/triage/runs/{id:guid}", async (
+    Guid id,
+    ITriageRunRepository repo,
+    CancellationToken ct) =>
+{
+    var run = await repo.GetByIdAsync(id, ct);
+    return run is null ? Results.NotFound() : Results.Ok(Rehydrate(run));
 });
 
 app.MapGet("/api/triage/{apiName}/history", async (
@@ -76,6 +93,18 @@ app.MapGet("/api/triage/{apiName}/history", async (
 });
 
 app.Run();
+
+static TriageResult Rehydrate(TriageRun run)
+{
+    var groups = JsonSerializer.Deserialize<List<ErrorGroup>>(run.ErrorGroupsJson) ?? new List<ErrorGroup>();
+    return new TriageResult(
+        run.Id,
+        run.ApiName,
+        run.RequestedAtUtc,
+        run.Lookback,
+        run.TotalLogs,
+        groups);
+}
 
 // Exposed for WebApplicationFactory in integration tests.
 public partial class Program;

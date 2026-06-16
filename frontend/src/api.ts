@@ -1,0 +1,25 @@
+import type { TriageResult } from './types';
+
+const DEFAULT_BASE = '';
+
+/** Resolves the API base URL: env var (`VITE_HFA_API`) or same-origin (proxied in dev). */
+function baseUrl(): string {
+  const fromEnv = import.meta.env.VITE_HFA_API as string | undefined;
+  return fromEnv?.trim() || DEFAULT_BASE;
+}
+
+export async function fetchTriageById(id: string, signal?: AbortSignal): Promise<TriageResult> {
+  const res = await fetch(`${baseUrl()}/api/triage/runs/${encodeURIComponent(id)}`, { signal });
+  if (!res.ok) {
+    throw new Error(`GET /api/triage/runs/${id} failed: ${res.status}`);
+  }
+  return (await res.json()) as TriageResult;
+}
+
+export async function fetchLatestTriage(apiName: string, signal?: AbortSignal): Promise<TriageResult> {
+  const res = await fetch(`${baseUrl()}/api/triage/${encodeURIComponent(apiName)}/latest`, { signal });
+  if (!res.ok) {
+    throw new Error(`GET /api/triage/${apiName}/latest failed: ${res.status}`);
+  }
+  return (await res.json()) as TriageResult;
+}

@@ -78,4 +78,22 @@ public sealed class TriageRunRepositoryTests : IAsyncLifetime, IDisposable
         Func<Task> act = () => _sut.ListAsync("x", take: 0);
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
+
+    [Fact]
+    public async Task GetByIdAsync_returns_the_run_when_present()
+    {
+        var run = await _sut.AddAsync(MakeRun());
+
+        var found = await _sut.GetByIdAsync(run.Id);
+
+        found.Should().NotBeNull();
+        found!.Id.Should().Be(run.Id);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_returns_null_when_unknown()
+    {
+        var found = await _sut.GetByIdAsync(Guid.NewGuid());
+        found.Should().BeNull();
+    }
 }
