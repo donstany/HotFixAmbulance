@@ -5,3 +5,4 @@ Append-only timeline of TDD cycles. The latest entry is at the bottom. Entries a
 | When (UTC) | Phase | Cycle step | Note |
 | --- | --- | --- | --- |
 | 2026-06-16 | 0.1 | scaffold | Created repo skeleton, `.gitignore`, `.editorconfig`, README, placeholder folders. |
+| 2026-06-16 10:23 | 1.1–1.5 | green | dotnet — 9-project sln + Core domain (Severity, LogEntry, ErrorGroup) with 16 passing tests |
