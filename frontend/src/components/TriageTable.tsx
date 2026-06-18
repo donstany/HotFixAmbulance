@@ -97,7 +97,7 @@ const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
   message: true,
   endpoint: true,
   httpStatus: false,
-  serviceVersion: true,
+  serviceVersion: false,
   correlationIdCount: true,
   suggestion: true,
   howToFix: true,

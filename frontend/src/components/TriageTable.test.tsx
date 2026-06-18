@@ -44,7 +44,7 @@ describe('<TriageTable />', () => {
   it('renders all visible columns by default', () => {
     render(<TriageTable groups={SAMPLE} />);
     const headers = screen.getAllByRole('columnheader');
-    expect(headers).toHaveLength(11);
+    expect(headers).toHaveLength(10);
   });
 
   it('sorts Fatal above Warning by default', () => {

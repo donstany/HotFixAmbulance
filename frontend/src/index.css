@@ -3,6 +3,33 @@
 @tailwind utilities;
 
 @layer components {
+  /* Animated ambulance branding icon */
+  .animated-ambulance {
+    @apply shrink-0 drop-shadow-sm;
+    transform-origin: center;
+    filter: drop-shadow(0 10px 18px rgba(14, 116, 144, 0.16));
+  }
+
+  .animate-ambulance-float {
+    animation: ambulance-float 3.6s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .animate-ambulance-beacon {
+    animation: ambulance-beacon 1.5s ease-in-out infinite;
+    transform-origin: 44px 17px;
+  }
+
+  .animate-ambulance-wheel-origin {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .animate-ambulance-wheel-left,
+  .animate-ambulance-wheel-right {
+    animation: ambulance-wheel 1.15s linear infinite;
+  }
+
   /* Pastel color helpers for data columns */
   .cell-pastel-blue {
     @apply bg-sky-50 text-slate-700 hover:bg-sky-100 transition-colors;
@@ -28,5 +55,39 @@
 
   .table-container::-webkit-scrollbar-thumb {
     @apply bg-slate-300 rounded-full hover:bg-slate-400;
+  }
+}
+
+@keyframes ambulance-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.5deg);
+  }
+
+  50% {
+    transform: translateY(-2px) rotate(0.5deg);
+  }
+}
+
+@keyframes ambulance-beacon {
+  0%,
+  100% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.58;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes ambulance-wheel {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }
