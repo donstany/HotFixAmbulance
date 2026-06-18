@@ -142,6 +142,29 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         names.Should().Contain("checkout-api");
     }
 
+    [Fact]
+    public async Task POST_absolute_then_GET_run_round_trips_FromUtc_and_ToUtc()
+    {
+        using var client = _factory.CreateClient();
+        var fromUtc = "2026-06-18T08:00:00Z";
+        var toUtc = "2026-06-18T10:00:00Z";
+
+        var post = await client.PostAsync(
+            new Uri($"/api/triage/checkout-api?fromUtc={fromUtc}&toUtc={toUtc}", UriKind.Relative),
+            content: null);
+        post.EnsureSuccessStatusCode();
+        var postJson = await post.Content.ReadAsStringAsync();
+        using var postDoc = JsonDocument.Parse(postJson);
+        var runId = postDoc.RootElement.GetProperty("id").GetGuid();
+
+        var get = await client.GetAsync(new Uri($"/api/triage/runs/{runId}", UriKind.Relative));
+        get.EnsureSuccessStatusCode();
+        var getJson = await get.Content.ReadAsStringAsync();
+        using var getDoc = JsonDocument.Parse(getJson);
+        getDoc.RootElement.GetProperty("fromUtc").GetString().Should().Be("2026-06-18T08:00:00+00:00");
+        getDoc.RootElement.GetProperty("toUtc").GetString().Should().Be("2026-06-18T10:00:00+00:00");
+    }
+
     private sealed record TriagePayload(Guid Id, string ApiName, int TotalLogs, IReadOnlyList<object> Groups);
 
     public sealed class HfaFactory : WebApplicationFactory<Program>

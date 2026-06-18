@@ -81,6 +81,8 @@ public sealed class TriageService
             ApiName = apiName,
             RequestedAtUtc = requestedAt,
             Lookback = window.Duration,
+            FromUtc = window.FromUtc,
+            ToUtc = window.ToUtc,
             TotalLogs = logs.Count,
             GroupCount = enriched.Count,
             ErrorGroupsJson = JsonSerializer.Serialize(enriched),

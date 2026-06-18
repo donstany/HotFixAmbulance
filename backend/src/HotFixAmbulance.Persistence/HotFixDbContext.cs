@@ -24,6 +24,15 @@ public sealed class HotFixDbContext : DbContext
             .HasConversion(
                 v => v.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture),
                 v => DateTimeOffset.Parse(v, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind));
+        // Phase 12.C: persist the analysis window. Nullable for back-compat with pre-12.C rows.
+        run.Property(r => r.FromUtc)
+            .HasConversion(
+                v => v.HasValue ? v.Value.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture) : null,
+                v => v == null ? (DateTimeOffset?)null : DateTimeOffset.Parse(v, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind));
+        run.Property(r => r.ToUtc)
+            .HasConversion(
+                v => v.HasValue ? v.Value.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture) : null,
+                v => v == null ? (DateTimeOffset?)null : DateTimeOffset.Parse(v, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind));
         run.HasIndex(r => new { r.ApiName, r.RequestedAtUtc });
     }
 }

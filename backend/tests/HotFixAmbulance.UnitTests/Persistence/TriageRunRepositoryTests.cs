@@ -96,4 +96,41 @@ public sealed class TriageRunRepositoryTests : IAsyncLifetime, IDisposable
         var found = await _sut.GetByIdAsync(Guid.NewGuid());
         found.Should().BeNull();
     }
+
+    [Fact]
+    public async Task AddAsync_persists_FromUtc_and_ToUtc_when_provided()
+    {
+        var from = new DateTimeOffset(2026, 3, 1, 10, 0, 0, TimeSpan.Zero);
+        var to = new DateTimeOffset(2026, 3, 1, 14, 0, 0, TimeSpan.Zero);
+        var run = new TriageRun
+        {
+            Id = Guid.NewGuid(),
+            ApiName = "checkout-api",
+            RequestedAtUtc = DateTimeOffset.UtcNow,
+            Lookback = TimeSpan.FromHours(4),
+            TotalLogs = 1,
+            GroupCount = 1,
+            ErrorGroupsJson = "[]",
+            FromUtc = from,
+            ToUtc = to,
+        };
+
+        var added = await _sut.AddAsync(run);
+        var fetched = await _sut.GetByIdAsync(added.Id);
+
+        fetched.Should().NotBeNull();
+        fetched!.FromUtc.Should().Be(from);
+        fetched.ToUtc.Should().Be(to);
+    }
+
+    [Fact]
+    public async Task AddAsync_allows_null_FromUtc_and_ToUtc_for_back_compat()
+    {
+        var added = await _sut.AddAsync(MakeRun());
+        var fetched = await _sut.GetByIdAsync(added.Id);
+
+        fetched.Should().NotBeNull();
+        fetched!.FromUtc.Should().BeNull();
+        fetched.ToUtc.Should().BeNull();
+    }
 }

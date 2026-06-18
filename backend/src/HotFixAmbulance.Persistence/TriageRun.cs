@@ -15,6 +15,18 @@ public sealed class TriageRun
     public required int TotalLogs { get; init; }
     public required int GroupCount { get; init; }
 
+    /// <summary>
+    /// Inclusive start of the analysis window. Nullable for back-compat with rows persisted before
+    /// Phase 12.C; <c>Rehydrate</c> falls back to <c>RequestedAtUtc - Lookback</c> when null.
+    /// </summary>
+    public DateTimeOffset? FromUtc { get; init; }
+
+    /// <summary>
+    /// Inclusive end of the analysis window. Nullable for back-compat with rows persisted before
+    /// Phase 12.C; <c>Rehydrate</c> falls back to <c>RequestedAtUtc</c> when null.
+    /// </summary>
+    public DateTimeOffset? ToUtc { get; init; }
+
     /// <summary>JSON-serialized <see cref="IReadOnlyList{ErrorGroup}"/> for the triage table.</summary>
     public required string ErrorGroupsJson { get; init; }
 }

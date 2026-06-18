@@ -51,6 +51,41 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<HotFixDbContext>();
     db.Database.EnsureCreated();
+    // Phase 12.C: EnsureCreated does not ALTER existing tables, so additive columns
+    // (FromUtc, ToUtc) must be applied manually for back-compat with pre-12.C databases.
+    // We use IF NOT EXISTS via PRAGMA so this is a no-op on fresh DBs and idempotent on reruns.
+    if (db.Database.IsRelational())
+    {
+        await EnsureWindowColumnsAsync(db);
+    }
+}
+
+static async Task EnsureWindowColumnsAsync(HotFixDbContext db)
+{
+    var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var conn = db.Database.GetDbConnection();
+    if (conn.State != System.Data.ConnectionState.Open)
+    {
+        await conn.OpenAsync();
+    }
+    using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "PRAGMA table_info(TriageRuns);";
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            existing.Add(reader.GetString(1));
+        }
+    }
+
+    if (!existing.Contains("FromUtc"))
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE TriageRuns ADD COLUMN FromUtc TEXT NULL");
+    }
+    if (!existing.Contains("ToUtc"))
+    {
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE TriageRuns ADD COLUMN ToUtc TEXT NULL");
+    }
 }
 
 app.UseCors();
@@ -141,10 +176,9 @@ app.Run();
 static TriageResult Rehydrate(TriageRun run)
 {
     var groups = JsonSerializer.Deserialize<List<ErrorGroup>>(run.ErrorGroupsJson) ?? new List<ErrorGroup>();
-    // Phase 12.B: historical runs predate FromUtc/ToUtc persistence (added in Phase 12.C),
-    // so we synthesize the window from RequestedAtUtc - Lookback.
-    var fromUtc = run.RequestedAtUtc - run.Lookback;
-    var toUtc = run.RequestedAtUtc;
+    // Pre-12.C rows lack FromUtc/ToUtc — fall back to RequestedAtUtc - Lookback.
+    var fromUtc = run.FromUtc ?? run.RequestedAtUtc - run.Lookback;
+    var toUtc = run.ToUtc ?? run.RequestedAtUtc;
     return new TriageResult(
         run.Id,
         run.ApiName,
