@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Reflection;
 using DemoApi;
 using Elastic.CommonSchema.Serilog;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Context;
 using Serilog.Sinks.Elasticsearch;
@@ -10,9 +12,33 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddEnvironmentVariables(prefix: "HFA_");
 
+var dbProvider = builder.Configuration["Database:Provider"] ?? "SqlServer";
+if (dbProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+{
+    var sqlServerConnection = builder.Configuration.GetConnectionString("DemoDb")
+        ?? "Server=localhost,14333;Database=HotFixDemo;User Id=sa;Password=Your_strong_Password123!;Encrypt=True;TrustServerCertificate=True;";
+    builder.Services.AddDbContext<DemoApiDbContext>((_, opts) =>
+        opts.UseSqlServer(sqlServerConnection, sql =>
+        {
+            sql.CommandTimeout(30);
+            sql.EnableRetryOnFailure(3);
+        }));
+}
+else
+{
+    // Fallback path for environments without SQL Server (tests/local experiments).
+    var sqliteConnection = new SqliteConnection("Data Source=hotfix-demo;Mode=Memory;Cache=Shared");
+    sqliteConnection.Open();
+    builder.Services.AddSingleton(sqliteConnection);
+    builder.Services.AddDbContext<DemoApiDbContext>((sp, opts) =>
+        opts.UseSqlite(sp.GetRequiredService<SqliteConnection>()));
+}
+
 builder.Services.AddSingleton<CustomerRepository>();
 builder.Services.AddSingleton<OrderProcessor>();
 builder.Services.AddSingleton<PaymentGateway>();
+builder.Services.AddScoped<DatabaseFailureSimulator>();
+builder.Services.AddSingleton<PricingEngine>();
 
 var applicationName = string.IsNullOrWhiteSpace(builder.Environment.ApplicationName)
     ? "demo-api"
@@ -50,6 +76,12 @@ builder.Host.UseSerilog((ctx, sp, cfg) =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<DemoApiDbContext>();
+    db.Database.EnsureCreated();
+}
 
 app.UseSerilogRequestLogging(opts =>
 {
@@ -115,6 +147,28 @@ app.MapGet("/payments/{id}", async (string id, PaymentGateway gateway, ILogger<P
     }
 });
 
+// 2b) Simulated upstream HTTP 503 from external payment settlement dependency.
+app.MapGet("/payments/{id}/settlement", async (string id, PaymentGateway gateway, ILogger<Program> log, CancellationToken ct) =>
+{
+    try
+    {
+        var status = await gateway.GetSettlementStatusAsync(id, ct);
+        return Results.Ok(new { id, status });
+    }
+    catch (HttpRequestException ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "Upstream payments-api returned 503 for settlement id={SettlementId}", id);
+        }
+        return Results.Problem("Upstream payments-api is unavailable.", statusCode: 502);
+    }
+});
+
 // 3) Negative ids -> ArgumentOutOfRangeException -> 500.
 app.MapGet("/users/{id:int}", (int id, ILogger<Program> log) =>
 {
@@ -139,6 +193,72 @@ app.MapGet("/users/{id:int}", (int id, ILogger<Program> log) =>
     }
 
     return Results.Ok(new { id, name = $"user-{id}" });
+});
+
+// 4) Real DB write failure: unique invoice number conflict in SQL Server via EF Core.
+app.MapPost("/invoices/duplicate", async (DatabaseFailureSimulator db, ILogger<Program> log, CancellationToken ct) =>
+{
+    try
+    {
+        await db.TriggerDuplicateInvoiceAsync(ct);
+        return Results.Ok(new { ok = true });
+    }
+    catch (DbUpdateException ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "productiondatabase write failed due to unique invoice constraint violation");
+        }
+        return Results.Problem("Database constraint violation while persisting invoice.", statusCode: 500);
+    }
+});
+
+// 5) Simulated DB timeout with descriptive productiondatabase wording.
+app.MapGet("/invoices/reprice", (DatabaseFailureSimulator db, ILogger<Program> log) =>
+{
+    try
+    {
+        db.TriggerQueryTimeout();
+        return Results.Ok(new { ok = true });
+    }
+    catch (TimeoutException ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "productiondatabase repricing query timed out");
+        }
+        return Results.Problem("Database timeout while repricing invoices.", statusCode: 500);
+    }
+});
+
+// 6) Code failure (not null reference): invalid pricing pipeline state.
+app.MapGet("/pricing/preview", (decimal? subtotal, decimal? loyaltyMultiplier, PricingEngine pricing, ILogger<Program> log) =>
+{
+    try
+    {
+        var total = pricing.PreviewFinalAmount(subtotal ?? 120m, loyaltyMultiplier ?? 0m);
+        return Results.Ok(new { total });
+    }
+    catch (InvalidOperationException ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "Pricing preview failed due to invalid discount pipeline configuration");
+        }
+        return Results.Problem(ex.Message, statusCode: 500, title: ex.GetType().Name);
+    }
 });
 
 app.Run();

@@ -9,6 +9,8 @@
   reports zero logs. Pass -WithElastic to spin up the local single-node ES container
   defined in infra/elasticsearch/docker-compose.yml, wire demo-api to it, and reshape
   the freshly-emitted ECS logs through the ingest pipeline before the CLI runs.
+    The demo now uses a real MSSQL database in Docker by default for realistic EF Core
+    failures (unique-constraint violations and database timeouts).
 
 .PARAMETER ApiName
   Logical API name passed to the CLI. Defaults to `demo-api`.
@@ -32,6 +34,13 @@
   Override the Elasticsearch URI used when -WithElastic is set. Defaults to
   http://localhost:9200.
 
+.PARAMETER WithMssql
+    When true (default), starts infra/mssql/docker-compose.yml and points demo-api to
+    SQL Server on localhost:14333.
+
+.PARAMETER MssqlSaPassword
+    SA password passed to the MSSQL container and connection string.
+
 .EXAMPLE
   powershell -File scripts/demo.ps1
   powershell -File scripts/demo.ps1 -WithElastic -KeepRunning
@@ -45,7 +54,9 @@ param(
     [switch]$SkipBackend,
     [switch]$KeepRunning,
     [switch]$WithElastic,
-    [string]$ElasticUri = 'http://localhost:9200'
+    [string]$ElasticUri = 'http://localhost:9200',
+    [bool]$WithMssql = $true,
+    [string]$MssqlSaPassword = 'Your_strong_Password123!'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +67,35 @@ function Write-Step($msg) { Write-Host "[demo] $msg" -ForegroundColor Cyan }
 function Test-PortFree([int]$port) {
     try { (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop) | Out-Null; return $false }
     catch { return $true }
+}
+
+if ($WithMssql) {
+    Write-Step 'Ensuring MSSQL container is up (docker compose up -d)'
+    $mssqlCompose = Join-Path $repoRoot 'infra/mssql/docker-compose.yml'
+    if (-not (Test-Path $mssqlCompose)) { throw "compose file not found: $mssqlCompose" }
+
+    $env:MSSQL_SA_PASSWORD = $MssqlSaPassword
+    & docker compose -f $mssqlCompose up -d
+    if ($LASTEXITCODE -ne 0) { throw 'mssql docker compose up failed (is Docker Desktop running?)' }
+
+    Write-Step 'Waiting for MSSQL health checks to pass'
+    $deadline = (Get-Date).AddMinutes(2)
+    $dbReady = $false
+    do {
+        try {
+            $status = (& docker inspect --format='{{.State.Health.Status}}' hfa-mssql 2>$null)
+            if ($status -eq 'healthy') { $dbReady = $true; break }
+        } catch { }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    if (-not $dbReady) {
+        throw 'MSSQL did not become healthy in time. Check: docker logs hfa-mssql'
+    }
+
+    # Wire demo-api DB to SQL Server.
+    $env:HFA_Database__Provider = 'SqlServer'
+    $env:HFA_ConnectionStrings__DemoDb = "Server=localhost,14333;Database=HotFixDemo;User Id=sa;Password=$MssqlSaPassword;Encrypt=True;TrustServerCertificate=True;"
+    Write-Step 'demo-api will use SQL Server at localhost:14333 (database: HotFixDemo)'
 }
 
 if ($WithElastic) {
@@ -148,8 +188,12 @@ try {
         try { Invoke-WebRequest -Uri 'http://localhost:5333/orders' -Method POST -ContentType 'application/json' -Body '{}' -UseBasicParsing | Out-Null } catch { }
         try { Invoke-WebRequest -Uri "http://localhost:5333/users/-$i" -UseBasicParsing | Out-Null } catch { }
         try { Invoke-WebRequest -Uri 'http://localhost:5333/payments/ab' -UseBasicParsing | Out-Null } catch { }
+        try { Invoke-WebRequest -Uri 'http://localhost:5333/payments/ab/settlement' -UseBasicParsing | Out-Null } catch { }
+        try { Invoke-WebRequest -Uri 'http://localhost:5333/invoices/duplicate' -Method POST -UseBasicParsing | Out-Null } catch { }
+        try { Invoke-WebRequest -Uri 'http://localhost:5333/invoices/reprice' -UseBasicParsing | Out-Null } catch { }
+        try { Invoke-WebRequest -Uri 'http://localhost:5333/pricing/preview' -UseBasicParsing | Out-Null } catch { }
     }
-    Write-Step '9 erroneous requests sent'
+    Write-Step '21 erroneous requests sent across null-reference, upstream timeout, upstream 503, DB constraint, DB timeout, and code-state failures'
 
     if ($WithElastic) {
         Write-Step 'Letting Serilog flush its Elasticsearch sink (8s)'

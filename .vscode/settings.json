@@ -51,6 +51,30 @@
         "/^git add -A; git commit -m \"Update frontend metrics and table tooltips\"$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^dotnet test backend/HotFixAmbulance\\.sln --filter \"FullyQualifiedName~Analyze_when_dependency_failures_builds_dependency_specific_root_cause\" --nologo --verbosity minimal$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^dotnet test backend/HotFixAmbulance\\.sln --filter \"FullyQualifiedName~POST_triage_includes_explicit_where_to_fix_guidance_in_howtofix\\|FullyQualifiedName~Analyze_when_dependency_failures_builds_dependency_specific_root_cause\" --nologo --verbosity minimal$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^dotnet test backend/HotFixAmbulance\\.sln --filter \"FullyQualifiedName~POST_triage_includes_explicit_where_to_fix_guidance_in_howtofix\\|FullyQualifiedName~Analyze_when_dependency_failures_builds_dependency_specific_root_cause\\|FullyQualifiedName~BuildAsync_emits_file_line_and_symbol_header_when_stack_info_present\" --nologo --verbosity minimal$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^dotnet build demo-api/demo-api\\.csproj --nologo --verbosity minimal$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^dotnet test backend/HotFixAmbulance\\.sln --nologo --verbosity minimal$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm --prefix frontend run lint$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

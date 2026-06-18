@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using HotFixAmbulance.Core;
 using HotFixAmbulance.Elastic;
@@ -47,6 +48,24 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         latest.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task POST_triage_includes_explicit_where_to_fix_guidance_in_howtofix()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var groups = doc.RootElement.GetProperty("groups");
+        groups.GetArrayLength().Should().BeGreaterThan(0);
+
+        var howToFix = groups[0].GetProperty("howToFix").GetString();
+        howToFix.Should().NotBeNullOrWhiteSpace();
+        howToFix!.Should().Contain("Where to fix", because: "recommendations must explicitly tell developers where to apply the change");
+    }
+
     private sealed record TriagePayload(Guid Id, string ApiName, int TotalLogs, IReadOnlyList<object> Groups);
 
     public sealed class HfaFactory : WebApplicationFactory<Program>
@@ -75,7 +94,15 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
                 .Returns(Task.FromResult("/tmp/fake"));
             var reader = Substitute.For<IGitHistoryReader>();
             reader.SearchCommitsAsync(Arg.Any<string>(), Arg.Any<GitSearchQuery>(), Arg.Any<CancellationToken>())
-                .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>([]));
+                .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>(
+                [
+                    new CommitSummary(
+                        Sha: "0123456789abcdef0123456789abcdef01234567",
+                        When: new DateTimeOffset(2026, 6, 18, 12, 0, 0, TimeSpan.Zero),
+                        Author: "Demo Dev",
+                        Subject: "Fix null cart handling",
+                        Files: ["src/Checkout/ConfirmHandler.cs"]),
+                ]));
 
             builder.ConfigureServices(services =>
             {
@@ -119,6 +146,9 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
                 Message = "Object reference not set to an instance of an object",
                 Endpoint = "/checkout/confirm",
                 HttpStatus = 500,
+                StackFile = "ConfirmHandler.cs",
+                StackSymbol = "ConfirmHandler.Handle",
+                StackLine = 77,
             };
         }
 

@@ -1,5 +1,7 @@
 namespace DemoApi;
 
+using System.Net;
+
 /// <summary>
 /// Domain models exposed through the broken endpoints. Kept intentionally simple so the
 /// NullReferenceException stack frame points at <c>OrderProcessor.GetCustomerEmail</c> — a
@@ -80,5 +82,31 @@ public sealed class PaymentGateway
         await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
         _log.LogInformation("Authorized {PaymentId}", paymentId);
         return 42m;
+    }
+
+    public Task<string> GetSettlementStatusAsync(string settlementId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        throw new HttpRequestException(
+            $"Received HTTP 503 from upstream payments-api while fetching settlement {settlementId}",
+            inner: null,
+            statusCode: HttpStatusCode.ServiceUnavailable);
+    }
+}
+
+/// <summary>
+/// Intentionally fragile business code path to demonstrate a non-null-reference code failure.
+/// </summary>
+public sealed class PricingEngine
+{
+    public decimal PreviewFinalAmount(decimal subtotal, decimal loyaltyMultiplier)
+    {
+        if (loyaltyMultiplier <= 0)
+        {
+            throw new InvalidOperationException(
+                "Discount pipeline bug: loyalty multiplier must be greater than 0 for final amount calculation.");
+        }
+
+        return decimal.Round(subtotal / loyaltyMultiplier, 2, MidpointRounding.AwayFromZero);
     }
 }

@@ -107,6 +107,34 @@ internal static class SuggestionBuilder
                 : "timeout — downstream call exceeded its deadline.";
         }
 
+        if (LooksLikeDatabaseFailure(exception, message))
+        {
+            if (message.Contains("deadlock", StringComparison.OrdinalIgnoreCase))
+            {
+                return "database failure — deadlock detected between concurrent transactions.";
+            }
+            if (message.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("lock", StringComparison.OrdinalIgnoreCase))
+            {
+                return "database failure — query execution timed out while waiting on database resources.";
+            }
+            if (message.Contains("constraint", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("violat", StringComparison.OrdinalIgnoreCase))
+            {
+                return "database failure — write violated a database constraint.";
+            }
+            return "database failure — persistent storage dependency rejected the operation.";
+        }
+
+        if (LooksLikeUpstreamDependencyFailure(exception, message))
+        {
+            var subject = ExtractAfter(message, "from ") ?? ExtractAfter(message, "upstream ") ?? ExtractAfter(message, "downstream ");
+            return subject is not null
+                ? $"upstream dependency failure — request to {subject} did not complete successfully."
+                : "upstream dependency failure — downstream service call did not complete successfully.";
+        }
+
         if (exception.Contains("ArgumentOutOfRange", StringComparison.OrdinalIgnoreCase)
             || exception.Contains("Argument", StringComparison.OrdinalIgnoreCase))
         {
@@ -162,4 +190,18 @@ internal static class SuggestionBuilder
         var slice = end < 0 ? haystack[start..] : haystack[start..end];
         return string.IsNullOrWhiteSpace(slice) ? null : slice.Trim();
     }
+
+    private static bool LooksLikeDatabaseFailure(string exception, string message) =>
+        exception.Contains("Sql", StringComparison.OrdinalIgnoreCase)
+        || exception.Contains("DbUpdate", StringComparison.OrdinalIgnoreCase)
+        || exception.Contains("Npgsql", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("database", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("sql", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeUpstreamDependencyFailure(string exception, string message) =>
+        exception.Contains("HttpRequest", StringComparison.OrdinalIgnoreCase)
+        || exception.Contains("Socket", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("upstream", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("downstream", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("received http", StringComparison.OrdinalIgnoreCase);
 }

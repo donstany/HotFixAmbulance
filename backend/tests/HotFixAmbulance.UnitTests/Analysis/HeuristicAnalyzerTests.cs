@@ -129,6 +129,23 @@ public sealed class HeuristicAnalyzerTests
         result[0].Suggestion!.ToLowerInvariant().Should().Contain("deadlock");
     }
 
+    [Theory]
+    [InlineData("Microsoft.Data.SqlClient.SqlException", "Execution Timeout Expired while waiting for lock resources", 500, "database")]
+    [InlineData("System.Net.Http.HttpRequestException", "Received HTTP 503 from upstream payments-api", 502, "upstream")]
+    public void Analyze_when_dependency_failures_builds_dependency_specific_root_cause(
+        string exceptionType,
+        string message,
+        int status,
+        string expectedPhrase)
+    {
+        var sut = new HeuristicAnalyzer();
+
+        var result = sut.Analyze([Make(exceptionType: exceptionType, message: message, status: status)]);
+
+        result[0].Suggestion.Should().NotBeNullOrWhiteSpace();
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain(expectedPhrase);
+    }
+
     [Fact]
     public void Analyze_fills_suggestion_for_validation_failure()
     {

@@ -93,6 +93,7 @@ public sealed class FixHintBuilder
 
         // Header: "<repo-relative-path>:<line> · <symbol>"
         var displayPath = ResolveDisplayPath(top.Files, group.StackFile) ?? group.StackFile ?? "(unknown file)";
+        sb.Append("Where to fix: ");
         sb.Append(displayPath);
         if (group.StackLine is int line)
         {
