@@ -129,6 +129,24 @@ public sealed class HeuristicAnalyzerTests
         result[0].Suggestion!.ToLowerInvariant().Should().Contain("deadlock");
     }
 
+    [Fact]
+    public void Analyze_fills_suggestion_and_howtofix_for_sql_limit_reached_transfer_hold()
+    {
+        var sut = new HeuristicAnalyzer();
+        var result = sut.Analyze(
+            [Make(
+                exceptionType: "Microsoft.Data.SqlClient.SqlException",
+                message: "Error = Sql; Limit reached. Transfers on hold (FPS, SWIFT) while processing customer wallets",
+                endpoint: "/transfers/on-hold",
+                status: 500)]);
+
+        result[0].Suggestion.Should().NotBeNullOrWhiteSpace();
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain("limit reached");
+        result[0].Suggestion!.ToLowerInvariant().Should().Contain("on hold");
+        result[0].HowToFix.Should().NotBeNullOrWhiteSpace();
+        result[0].HowToFix!.ToLowerInvariant().Should().Contain("on-hold transfer");
+    }
+
     [Theory]
     [InlineData("Microsoft.Data.SqlClient.SqlException", "Execution Timeout Expired while waiting for lock resources", 500, "database")]
     [InlineData("System.Net.Http.HttpRequestException", "Received HTTP 503 from upstream payments-api", 502, "upstream")]

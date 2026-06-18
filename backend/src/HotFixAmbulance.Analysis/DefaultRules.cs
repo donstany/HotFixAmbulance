@@ -32,6 +32,13 @@ internal static class DefaultRules
                 + "and check whether a missing covering index on the hot table is forcing a table lock.",
             g => ContainsMessage(g, "deadlock")),
 
+        new("SqlLimitReached",
+            Suggestion: "Database limit reached — transfer processing paused and payments moved to on-hold.",
+            HowToFix: "Reduce database pressure (pool limits / worker parallelism), clear blocking sessions, "
+                + "then replay and reconcile the on-hold transfer ids against customer wallets.",
+            g => (ContainsType(g, "Sql") || ContainsType(g, "DbUpdate") || ContainsMessage(g, "error = sql"))
+                && ContainsMessage(g, "limit reached", "on hold")),
+
         new("Validation",
             Suggestion: "Validation failure — the request payload did not satisfy the contract.",
             HowToFix: "Re-generate the client DTOs from the OpenAPI spec, and align the FluentValidation "

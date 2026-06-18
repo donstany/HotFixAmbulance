@@ -113,6 +113,10 @@ internal static class SuggestionBuilder
             {
                 return "database failure — deadlock detected between concurrent transactions.";
             }
+            if (message.Contains("limit reached", StringComparison.OrdinalIgnoreCase))
+            {
+                return "database failure — SQL limit reached while processing wallet payouts; transfers were put on hold.";
+            }
             if (message.Contains("timeout", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("lock", StringComparison.OrdinalIgnoreCase))
             {

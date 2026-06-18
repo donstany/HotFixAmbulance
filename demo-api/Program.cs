@@ -34,11 +34,7 @@ else
         opts.UseSqlite(sp.GetRequiredService<SqliteConnection>()));
 }
 
-builder.Services.AddSingleton<CustomerRepository>();
-builder.Services.AddSingleton<OrderProcessor>();
-builder.Services.AddSingleton<PaymentGateway>();
 builder.Services.AddScoped<DatabaseFailureSimulator>();
-builder.Services.AddSingleton<PricingEngine>();
 
 var applicationName = string.IsNullOrWhiteSpace(builder.Environment.ApplicationName)
     ? "demo-api"
@@ -100,16 +96,30 @@ app.UseSerilogRequestLogging(opts =>
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-// 1) Real NullReferenceException on a missing customer field (".Email on a null Customer").
-//    The stack frame of the throw points at OrderProcessor.GetCustomerEmail in BrokenServices.cs,
-//    which is what the triage tool's git-insights layer keys off of.
-app.MapPost("/orders", (OrderRequest? req, OrderProcessor processor, ILogger<Program> log) =>
+// 1) Real CRUD: Create order for a customer. May fail if customer doesn't exist (foreign key).
+app.MapPost("/orders", async (OrderRequest? req, DatabaseFailureSimulator db, DemoApiDbContext context, ILogger<Program> log, CancellationToken ct) =>
 {
-    var request = req ?? new OrderRequest(null, 0m);
     try
     {
-        var orderId = processor.PlaceOrder(request);
-        return Results.Accepted($"/orders/{orderId}", new { ok = true });
+        var request = req ?? new OrderRequest(null, 0m);
+        
+        // Ensure customer exists or create a default one
+        var customer = await context.Customers
+            .FirstOrDefaultAsync(c => c.Email == (request.CustomerEmail ?? "default@example.com"), ct)
+            .ConfigureAwait(false);
+        
+        if (customer == null)
+        {
+            customer = await db.CreateCustomerAsync(
+                request.CustomerEmail?.Split('@')[0] ?? "unknown",
+                request.CustomerEmail ?? "default@example.com",
+                ct);
+        }
+
+        // Create order for customer
+        var order = await db.CreateOrderAsync(customer.Id, request.Amount, ct);
+        
+        return Results.Accepted($"/orders/{order.Id}", new { orderId = order.Id, ok = true });
     }
     catch (Exception ex)
     {
@@ -125,15 +135,23 @@ app.MapPost("/orders", (OrderRequest? req, OrderProcessor processor, ILogger<Pro
     }
 });
 
-// 2) Simulated upstream timeout (deadline < provider p99).
-app.MapGet("/payments/{id}", async (string id, PaymentGateway gateway, ILogger<Program> log, CancellationToken ct) =>
+// 2) Real CRUD: Get payment by ID; may fail with argument validation.
+app.MapGet("/payments/{id}", async (string id, DatabaseFailureSimulator db, DemoApiDbContext context, ILogger<Program> log, CancellationToken ct) =>
 {
     try
     {
-        var amount = await gateway.AuthorizeAsync(id, ct);
-        return Results.Ok(new { id, amount });
+        var payment = await context.Payments
+            .FirstOrDefaultAsync(p => p.PaymentId == id, ct)
+            .ConfigureAwait(false);
+        
+        if (payment == null)
+        {
+            throw new InvalidOperationException($"Payment {id} not found");
+        }
+
+        return Results.Ok(new { id = payment.PaymentId, amount = payment.Amount, status = payment.Status });
     }
-    catch (OperationCanceledException ex)
+    catch (Exception ex)
     {
         var (file, symbol, line) = ResolveFailingFrame(ex);
         using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
@@ -141,21 +159,29 @@ app.MapGet("/payments/{id}", async (string id, PaymentGateway gateway, ILogger<P
         using (LogContext.PushProperty("StackSymbol", symbol))
         using (LogContext.PushProperty("StackLine", line))
         {
-            log.LogError(ex, "Payment provider call timed out for id={PaymentId} after 50ms deadline", id);
+            log.LogError(ex, "Payment lookup failed for id={PaymentId}", id);
         }
-        return Results.Problem("Operation has timed out talking to payment provider.", statusCode: 504);
+        return Results.Problem(ex.Message, statusCode: 404);
     }
 });
 
-// 2b) Simulated upstream HTTP 503 from external payment settlement dependency.
-app.MapGet("/payments/{id}/settlement", async (string id, PaymentGateway gateway, ILogger<Program> log, CancellationToken ct) =>
+// 2b) Real CRUD: Get payment settlement status; may timeout or fail.
+app.MapGet("/payments/{id}/settlement", async (string id, DemoApiDbContext context, ILogger<Program> log, CancellationToken ct) =>
 {
     try
     {
-        var status = await gateway.GetSettlementStatusAsync(id, ct);
-        return Results.Ok(new { id, status });
+        var payment = await context.Payments
+            .FirstOrDefaultAsync(p => p.PaymentId == id, ct)
+            .ConfigureAwait(false);
+        
+        if (payment == null)
+        {
+            throw new InvalidOperationException($"Settlement not found for payment {id}");
+        }
+
+        return Results.Ok(new { id = payment.PaymentId, status = payment.Status });
     }
-    catch (HttpRequestException ex)
+    catch (Exception ex)
     {
         var (file, symbol, line) = ResolveFailingFrame(ex);
         using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
@@ -163,39 +189,52 @@ app.MapGet("/payments/{id}/settlement", async (string id, PaymentGateway gateway
         using (LogContext.PushProperty("StackSymbol", symbol))
         using (LogContext.PushProperty("StackLine", line))
         {
-            log.LogError(ex, "Upstream payments-api returned 503 for settlement id={SettlementId}", id);
+            log.LogError(ex, "Upstream payments-api settlement lookup failed for id={SettlementId}", id);
         }
         return Results.Problem("Upstream payments-api is unavailable.", statusCode: 502);
     }
 });
 
-// 3) Negative ids -> ArgumentOutOfRangeException -> 500.
-app.MapGet("/users/{id:int}", (int id, ILogger<Program> log) =>
+// 3) Real CRUD: Get user by ID; may fail with ArgumentOutOfRangeException on negative ID.
+app.MapGet("/users/{id:int}", async (int id, DatabaseFailureSimulator db, ILogger<Program> log, CancellationToken ct) =>
 {
-    if (id < 0)
+    try
     {
-        try
+        if (id < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(id), id, "id must be non-negative");
+            throw new ArgumentOutOfRangeException(nameof(id), id, $"User lookup with invalid id {id}");
         }
-        catch (ArgumentOutOfRangeException ex)
-        {
-            var (file, symbol, line) = ResolveFailingFrame(ex);
-            using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
-            using (LogContext.PushProperty("StackFile", file))
-            using (LogContext.PushProperty("StackSymbol", symbol))
-            using (LogContext.PushProperty("StackLine", line))
-            {
-                log.LogError(ex, "User lookup with invalid id {UserId}", id);
-            }
-            return Results.Problem(ex.Message, statusCode: 500, title: ex.GetType().Name);
-        }
-    }
 
-    return Results.Ok(new { id, name = $"user-{id}" });
+        var user = await db.GetUserAsync(id, ct);
+        return Results.Ok(new { id = user.Id, name = user.Name, email = user.Email });
+    }
+    catch (ArgumentOutOfRangeException ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "User lookup with invalid id {UserId}", id);
+        }
+        return Results.Problem(ex.Message, statusCode: 500, title: ex.GetType().Name);
+    }
+    catch (Exception ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", ex.GetType().FullName))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(ex, "User lookup failed for id={UserId}", id);
+        }
+        return Results.Problem(ex.Message, statusCode: 500, title: ex.GetType().Name);
+    }
 });
 
-// 4) Real DB write failure: unique invoice number conflict in SQL Server via EF Core.
+// 4) Real CRUD: Create duplicate invoices to trigger unique constraint violation.
 app.MapPost("/invoices/duplicate", async (DatabaseFailureSimulator db, ILogger<Program> log, CancellationToken ct) =>
 {
     try
@@ -211,19 +250,23 @@ app.MapPost("/invoices/duplicate", async (DatabaseFailureSimulator db, ILogger<P
         using (LogContext.PushProperty("StackSymbol", symbol))
         using (LogContext.PushProperty("StackLine", line))
         {
-            log.LogError(ex, "productiondatabase write failed due to unique invoice constraint violation");
+            log.LogError(ex, "Database write failed due to unique invoice constraint violation");
         }
         return Results.Problem("Database constraint violation while persisting invoice.", statusCode: 500);
     }
 });
 
-// 5) Simulated DB timeout with descriptive productiondatabase wording.
-app.MapGet("/invoices/reprice", (DatabaseFailureSimulator db, ILogger<Program> log) =>
+// 5) Real CRUD: Query invoices (simulates timeout).
+app.MapGet("/invoices/reprice", async (DemoApiDbContext context, ILogger<Program> log, CancellationToken ct) =>
 {
     try
     {
-        db.TriggerQueryTimeout();
-        return Results.Ok(new { ok = true });
+        var invoices = await context.Invoices
+            .Take(100)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+        
+        return Results.Ok(new { count = invoices.Count, invoices });
     }
     catch (TimeoutException ex)
     {
@@ -233,19 +276,61 @@ app.MapGet("/invoices/reprice", (DatabaseFailureSimulator db, ILogger<Program> l
         using (LogContext.PushProperty("StackSymbol", symbol))
         using (LogContext.PushProperty("StackLine", line))
         {
-            log.LogError(ex, "productiondatabase repricing query timed out");
+            log.LogError(ex, "Database repricing query timed out");
         }
         return Results.Problem("Database timeout while repricing invoices.", statusCode: 500);
     }
 });
 
-// 6) Code failure (not null reference): invalid pricing pipeline state.
-app.MapGet("/pricing/preview", (decimal? subtotal, decimal? loyaltyMultiplier, PricingEngine pricing, ILogger<Program> log) =>
+// 5b) Real CRUD: Create transfer on-hold due to SQL limit reached.
+app.MapPost("/transfers/on-hold", async (DatabaseFailureSimulator db, DemoApiDbContext context, ILogger<Program> log, CancellationToken ct) =>
 {
     try
     {
-        var total = pricing.PreviewFinalAmount(subtotal ?? 120m, loyaltyMultiplier ?? 0m);
-        return Results.Ok(new { total });
+        // Create a test customer if not exists
+        var customer = await context.Customers
+            .FirstOrDefaultAsync(c => c.Email == "wallet-processing@internal.local", ct)
+            .ConfigureAwait(false) 
+            ?? await db.CreateCustomerAsync("Wallet Processor", "wallet-processing@internal.local", ct);
+
+        // Create transfer on hold
+        var transfer = await db.CreateTransferOnHoldAsync(
+            customer.Id,
+            10000m,
+            "2962544476,2962552075",
+            ct);
+
+        return Results.Ok(new { ok = true, transferId = transfer.TransferId });
+    }
+    catch (DbUpdateException ex)
+    {
+        var (file, symbol, line) = ResolveFailingFrame(ex);
+        using (LogContext.PushProperty("ExceptionType", "Microsoft.Data.SqlClient.SqlException"))
+        using (LogContext.PushProperty("StackFile", file))
+        using (LogContext.PushProperty("StackSymbol", symbol))
+        using (LogContext.PushProperty("StackLine", line))
+        {
+            log.LogError(
+                ex,
+                "Transfers on hold due to Error = Sql; Limit reached while applying payments to customer wallets. Rails={Rails}. PaymentIds={PaymentIds}",
+                "FPS,SWIFT",
+                "2962544476,2962552075");
+        }
+
+        return Results.Problem(
+            "Transfers moved to On Hold because SQL limit was reached during wallet payout processing.",
+            statusCode: 500,
+            title: "SqlLimitReached");
+    }
+});
+
+// 6) Real CRUD: Create and store pricing calculation.
+app.MapGet("/pricing/preview", async (decimal? subtotal, decimal? loyaltyMultiplier, DatabaseFailureSimulator db, ILogger<Program> log, CancellationToken ct) =>
+{
+    try
+    {
+        var total = await db.CreatePricingRecordAsync(subtotal ?? 120m, loyaltyMultiplier ?? 0m, ct);
+        return Results.Ok(new { subtotal = subtotal ?? 120m, loyaltyMultiplier = loyaltyMultiplier ?? 0m, total });
     }
     catch (InvalidOperationException ex)
     {
@@ -293,3 +378,7 @@ static (string? File, string? Symbol, int? Line) ResolveFailingFrame(Exception e
     return (null, null, null);
 }
 
+/// <summary>
+/// Request model for creating orders.
+/// </summary>
+public record OrderRequest(string? CustomerEmail, decimal Amount);

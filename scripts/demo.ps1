@@ -191,9 +191,10 @@ try {
         try { Invoke-WebRequest -Uri 'http://localhost:5333/payments/ab/settlement' -UseBasicParsing | Out-Null } catch { }
         try { Invoke-WebRequest -Uri 'http://localhost:5333/invoices/duplicate' -Method POST -UseBasicParsing | Out-Null } catch { }
         try { Invoke-WebRequest -Uri 'http://localhost:5333/invoices/reprice' -UseBasicParsing | Out-Null } catch { }
+        try { Invoke-WebRequest -Uri 'http://localhost:5333/transfers/on-hold' -Method POST -UseBasicParsing | Out-Null } catch { }
         try { Invoke-WebRequest -Uri 'http://localhost:5333/pricing/preview' -UseBasicParsing | Out-Null } catch { }
     }
-    Write-Step '21 erroneous requests sent across null-reference, upstream timeout, upstream 503, DB constraint, DB timeout, and code-state failures'
+    Write-Step '24 erroneous requests sent across null-reference, upstream timeout, upstream 503, DB constraint, DB timeout, SQL limit reached on-hold transfers, and code-state failures'
 
     if ($WithElastic) {
         Write-Step 'Letting Serilog flush its Elasticsearch sink (8s)'
