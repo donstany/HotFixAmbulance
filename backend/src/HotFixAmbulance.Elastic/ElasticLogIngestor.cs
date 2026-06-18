@@ -43,14 +43,34 @@ public sealed class ElasticLogIngestor
             throw new ArgumentOutOfRangeException(nameof(lookback), lookback, "Lookback must be positive.");
         }
 
+        var window = TimeWindow.Relative(_clock.GetUtcNow(), lookback);
+        return await FetchAsync(apiName, window, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fetches logs for the supplied API filtered by an absolute UTC <paramref name="window"/>.
+    /// Prefer this overload over the <see cref="TimeSpan"/> one when the caller has explicit
+    /// from/to timestamps (e.g. picked by the user in the UI).
+    /// </summary>
+    public async Task<IReadOnlyList<LogEntry>> FetchAsync(
+        string apiName,
+        TimeWindow window,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(apiName))
+        {
+            throw new ArgumentException("API name is required.", nameof(apiName));
+        }
+
+        ArgumentNullException.ThrowIfNull(window);
+
         cancellationToken.ThrowIfCancellationRequested();
 
-        var now = _clock.GetUtcNow();
         var query = new LogQuery
         {
             ApiName = apiName,
-            From = now - lookback,
-            To = now,
+            From = window.FromUtc,
+            To = window.ToUtc,
             Severities = AllowedSeverities,
         };
 

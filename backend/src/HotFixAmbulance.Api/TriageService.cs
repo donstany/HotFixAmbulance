@@ -48,9 +48,22 @@ public sealed class TriageService
             throw new ArgumentOutOfRangeException(nameof(lookback), lookback, "Lookback must be positive.");
         }
 
+        var window = TimeWindow.Relative(_clock.GetUtcNow(), lookback);
+        return await RunAsync(apiName, window, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Runs the triage pipeline against an explicit UTC <paramref name="window"/>. The window
+    /// is what gets passed to Elastic and persisted on the resulting <see cref="TriageRun"/>.
+    /// </summary>
+    public async Task<TriageResult> RunAsync(string apiName, TimeWindow window, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiName);
+        ArgumentNullException.ThrowIfNull(window);
+
         var requestedAt = _clock.GetUtcNow();
 
-        var logs = await _ingestor.FetchAsync(apiName, lookback, cancellationToken).ConfigureAwait(false);
+        var logs = await _ingestor.FetchAsync(apiName, window, cancellationToken).ConfigureAwait(false);
 
         var groups = _analyzer.Analyze(logs);
 
@@ -66,7 +79,7 @@ public sealed class TriageService
             Id = Guid.NewGuid(),
             ApiName = apiName,
             RequestedAtUtc = requestedAt,
-            Lookback = lookback,
+            Lookback = window.Duration,
             TotalLogs = logs.Count,
             GroupCount = enriched.Count,
             ErrorGroupsJson = JsonSerializer.Serialize(enriched),
