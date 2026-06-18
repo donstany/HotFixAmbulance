@@ -47,7 +47,7 @@ using var host = builder.Build();
 using (var scope = host.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<HotFixDbContext>();
-    await db.Database.EnsureCreatedAsync().ConfigureAwait(false);
+    await db.EnsureSchemaAsync().ConfigureAwait(false);
 }
 
 try
