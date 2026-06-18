@@ -1,3 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  /* Pastel color helpers for data columns */
+  .cell-pastel-blue {
+    @apply bg-sky-50 text-slate-700 hover:bg-sky-100 transition-colors;
+  }
+
+  .cell-pastel-green {
+    @apply bg-emerald-50 text-slate-700 hover:bg-emerald-100 transition-colors;
+  }
+
+  /* Table utilities */
+  .table-container {
+    @apply overflow-x-auto rounded-lg border border-slate-200 shadow-sm;
+  }
+
+  /* Improved scrollbar styling */
+  .table-container::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .table-container::-webkit-scrollbar-track {
+    @apply bg-slate-100;
+  }
+
+  .table-container::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full hover:bg-slate-400;
+  }
+}

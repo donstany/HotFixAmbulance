@@ -1,4 +1,5 @@
 import type { Severity } from '../types';
+import { AlertCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 
 const RANK: Record<Severity, number> = {
   Fatal: 3,
@@ -12,6 +13,20 @@ const RANK: Record<Severity, number> = {
  */
 export function severityRank(severity: Severity | string): number {
   return RANK[severity as Severity] ?? 0;
+}
+
+/** Get the icon component for a severity level */
+export function getSeverityIcon(severity: Severity | string): React.ElementType {
+  switch (severity) {
+    case 'Fatal':
+      return AlertOctagon;
+    case 'Error':
+      return AlertTriangle;
+    case 'Warning':
+      return AlertCircle;
+    default:
+      return AlertCircle;
+  }
 }
 
 /** Tailwind class set for the severity badge. */

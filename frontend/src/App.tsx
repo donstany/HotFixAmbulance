@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { fetchLatestTriage, fetchTriageById } from './api';
 import { TriageTable } from './components/TriageTable';
+import { MetricsPanel } from './components/MetricsPanel';
 import type { TriageResult } from './types';
 
 const client = new QueryClient({
@@ -51,6 +52,7 @@ function TriageView() {
         </p>
         <p className="ml-auto text-xs text-slate-400">analysis id {r.id}</p>
       </header>
+      <MetricsPanel errorGroups={r.groups} />
       <TriageTable groups={r.groups} />
     </div>
   );

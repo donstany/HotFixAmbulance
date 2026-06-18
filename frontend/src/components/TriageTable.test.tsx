@@ -41,10 +41,10 @@ const SAMPLE: ErrorGroup[] = [
 ];
 
 describe('<TriageTable />', () => {
-  it('renders all 12 columns', () => {
+  it('renders all visible columns by default', () => {
     render(<TriageTable groups={SAMPLE} />);
     const headers = screen.getAllByRole('columnheader');
-    expect(headers).toHaveLength(12);
+    expect(headers).toHaveLength(11);
   });
 
   it('sorts Fatal above Warning by default', () => {

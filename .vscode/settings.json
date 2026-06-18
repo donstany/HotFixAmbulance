@@ -27,6 +27,30 @@
         "/^Write-Host \"== Starting Vite dev server on http://localhost:5173 ==\" -ForegroundColor Cyan; npm --prefix frontend run dev$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^cd frontend ; npm install lucide-react$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd frontend ; npm run lint$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd frontend ; npm run dev$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd frontend ; npm run lint 2>&1 \\| head -50$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git rev-parse --show-toplevel$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git add -A; git commit -m \"Update frontend metrics and table tooltips\"$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
