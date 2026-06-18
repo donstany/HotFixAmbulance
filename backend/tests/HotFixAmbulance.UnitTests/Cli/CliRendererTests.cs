@@ -32,7 +32,10 @@ public sealed class CliRendererTests
             "checkout-api",
             when,
             TimeSpan.FromHours(24),
+            FromUtc: when.AddHours(-24),
+            ToUtc: when,
             TotalLogs: 3,
+            IsTruncated: false,
             Groups: [group]);
 
         await using var writer = new StringWriter();

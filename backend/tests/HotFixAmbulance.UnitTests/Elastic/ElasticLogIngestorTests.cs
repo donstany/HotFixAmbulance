@@ -141,4 +141,71 @@ public class ElasticLogIngestorTests
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
+
+    [Fact]
+    public async Task FetchAsync_TimeWindow_PassesAbsoluteFromAndTo_VerbatimToSource()
+    {
+        var (sut, source) = BuildSut();
+        var window = TimeWindow.Absolute(
+            new DateTimeOffset(2026, 6, 18, 8, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 6, 18, 10, 0, 0, TimeSpan.Zero));
+
+        await sut.FetchAsync("demo-api", window, default);
+
+        source.Received(1).SearchAsync(
+            Arg.Is<LogQuery>(q =>
+                q.ApiName == "demo-api" &&
+                q.From == window.FromUtc &&
+                q.To == window.ToUtc),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FetchAsync_TimeWindow_FlagsTruncatedWhenLogsHitMaxDocuments()
+    {
+        var source = Substitute.For<IElasticLogSource>();
+        source.SearchAsync(Arg.Any<LogQuery>(), Arg.Any<CancellationToken>())
+              .Returns(_ => ToAsync(new[] { Log(), Log() }));
+
+        var clock = Substitute.For<TimeProvider>();
+        clock.GetUtcNow().Returns(FixedNow);
+
+        var options = Microsoft.Extensions.Options.Options.Create(new ElasticOptions
+        {
+            Uri = new Uri("http://localhost:9200"),
+            MaxDocuments = 2,
+        });
+
+        var sut = new ElasticLogIngestor(source, clock, options);
+        var window = TimeWindow.Relative(FixedNow, TimeSpan.FromHours(1));
+
+        var result = await sut.FetchAsync("demo-api", window, default);
+
+        result.Logs.Should().HaveCount(2);
+        result.IsTruncated.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task FetchAsync_TimeWindow_DoesNotFlagTruncatedWhenBelowCap()
+    {
+        var source = Substitute.For<IElasticLogSource>();
+        source.SearchAsync(Arg.Any<LogQuery>(), Arg.Any<CancellationToken>())
+              .Returns(_ => ToAsync(new[] { Log() }));
+
+        var clock = Substitute.For<TimeProvider>();
+        clock.GetUtcNow().Returns(FixedNow);
+
+        var options = Microsoft.Extensions.Options.Options.Create(new ElasticOptions
+        {
+            Uri = new Uri("http://localhost:9200"),
+            MaxDocuments = 10,
+        });
+
+        var sut = new ElasticLogIngestor(source, clock, options);
+        var window = TimeWindow.Relative(FixedNow, TimeSpan.FromHours(1));
+
+        var result = await sut.FetchAsync("demo-api", window, default);
+
+        result.IsTruncated.Should().BeFalse();
+    }
 }

@@ -63,7 +63,8 @@ public sealed class TriageService
 
         var requestedAt = _clock.GetUtcNow();
 
-        var logs = await _ingestor.FetchAsync(apiName, window, cancellationToken).ConfigureAwait(false);
+        var ingestion = await _ingestor.FetchAsync(apiName, window, cancellationToken).ConfigureAwait(false);
+        var logs = ingestion.Logs;
 
         var groups = _analyzer.Analyze(logs);
 
@@ -92,7 +93,10 @@ public sealed class TriageService
             run.ApiName,
             run.RequestedAtUtc,
             run.Lookback,
+            window.FromUtc,
+            window.ToUtc,
             run.TotalLogs,
+            ingestion.IsTruncated,
             enriched);
     }
 }

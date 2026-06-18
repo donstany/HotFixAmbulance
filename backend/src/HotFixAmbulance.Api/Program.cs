@@ -58,14 +58,53 @@ app.UseStatusCodePages();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTimeOffset.UtcNow }));
 
+app.MapGet("/api/apis", (ApisConfig apis) =>
+    Results.Ok(apis.KnownApis.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray()));
+
 app.MapPost("/api/triage/{apiName}", async (
     string apiName,
     [FromQuery] int? lookbackHours,
+    [FromQuery] DateTimeOffset? fromUtc,
+    [FromQuery] DateTimeOffset? toUtc,
     TriageService service,
+    TimeProvider clock,
     CancellationToken ct) =>
 {
-    var lookback = TimeSpan.FromHours(lookbackHours is > 0 ? lookbackHours.Value : 24);
-    var result = await service.RunAsync(apiName, lookback, ct);
+    var hasLookback = lookbackHours is > 0;
+    var hasAbsolute = fromUtc.HasValue || toUtc.HasValue;
+
+    if (hasLookback && hasAbsolute)
+    {
+        return Results.Problem(
+            detail: "Specify either lookbackHours or fromUtc/toUtc, not both.",
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    TimeWindow window;
+    try
+    {
+        if (hasAbsolute)
+        {
+            if (!fromUtc.HasValue || !toUtc.HasValue)
+            {
+                return Results.Problem(
+                    detail: "Both fromUtc and toUtc are required when using an absolute time range.",
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
+            window = TimeWindow.Absolute(fromUtc.Value, toUtc.Value);
+        }
+        else
+        {
+            var lookback = TimeSpan.FromHours(hasLookback ? lookbackHours!.Value : 24);
+            window = TimeWindow.Relative(clock.GetUtcNow(), lookback);
+        }
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    var result = await service.RunAsync(apiName, window, ct);
     return Results.Ok(result);
 });
 
@@ -102,12 +141,19 @@ app.Run();
 static TriageResult Rehydrate(TriageRun run)
 {
     var groups = JsonSerializer.Deserialize<List<ErrorGroup>>(run.ErrorGroupsJson) ?? new List<ErrorGroup>();
+    // Phase 12.B: historical runs predate FromUtc/ToUtc persistence (added in Phase 12.C),
+    // so we synthesize the window from RequestedAtUtc - Lookback.
+    var fromUtc = run.RequestedAtUtc - run.Lookback;
+    var toUtc = run.RequestedAtUtc;
     return new TriageResult(
         run.Id,
         run.ApiName,
         run.RequestedAtUtc,
         run.Lookback,
+        fromUtc,
+        toUtc,
         run.TotalLogs,
+        IsTruncated: false,
         groups);
 }
 

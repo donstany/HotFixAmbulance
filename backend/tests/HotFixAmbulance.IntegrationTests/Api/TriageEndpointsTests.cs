@@ -66,6 +66,82 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         howToFix!.Should().Contain("Where to fix", because: "recommendations must explicitly tell developers where to apply the change");
     }
 
+    [Fact]
+    public async Task POST_triage_with_absolute_fromUtc_and_toUtc_succeeds_and_echoes_window()
+    {
+        using var client = _factory.CreateClient();
+        var fromUtc = "2026-06-18T08:00:00Z";
+        var toUtc = "2026-06-18T10:00:00Z";
+
+        var response = await client.PostAsync(
+            new Uri($"/api/triage/checkout-api?fromUtc={fromUtc}&toUtc={toUtc}", UriKind.Relative),
+            content: null);
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        doc.RootElement.GetProperty("fromUtc").GetString().Should().Be("2026-06-18T08:00:00+00:00");
+        doc.RootElement.GetProperty("toUtc").GetString().Should().Be("2026-06-18T10:00:00+00:00");
+        doc.RootElement.GetProperty("isTruncated").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task POST_triage_with_both_lookback_and_absolute_returns_400()
+    {
+        using var client = _factory.CreateClient();
+        var response = await client.PostAsync(
+            new Uri("/api/triage/checkout-api?lookbackHours=24&fromUtc=2026-06-18T08:00:00Z&toUtc=2026-06-18T10:00:00Z", UriKind.Relative),
+            content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task POST_triage_with_only_fromUtc_returns_400()
+    {
+        using var client = _factory.CreateClient();
+        var response = await client.PostAsync(
+            new Uri("/api/triage/checkout-api?fromUtc=2026-06-18T08:00:00Z", UriKind.Relative),
+            content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task POST_triage_with_inverted_range_returns_400()
+    {
+        using var client = _factory.CreateClient();
+        var response = await client.PostAsync(
+            new Uri("/api/triage/checkout-api?fromUtc=2026-06-18T10:00:00Z&toUtc=2026-06-18T08:00:00Z", UriKind.Relative),
+            content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task POST_triage_with_no_params_uses_default_24h_lookback()
+    {
+        using var client = _factory.CreateClient();
+        var response = await client.PostAsync(new Uri("/api/triage/checkout-api", UriKind.Relative), content: null);
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var lookback = doc.RootElement.GetProperty("lookback").GetString();
+        lookback.Should().Be("1.00:00:00");
+    }
+
+    [Fact]
+    public async Task GET_api_apis_returns_known_api_names_sorted()
+    {
+        using var client = _factory.CreateClient();
+        var response = await client.GetAsync(new Uri("/api/apis", UriKind.Relative));
+
+        response.EnsureSuccessStatusCode();
+        var names = await response.Content.ReadFromJsonAsync<string[]>();
+        names.Should().Contain("checkout-api");
+    }
+
     private sealed record TriagePayload(Guid Id, string ApiName, int TotalLogs, IReadOnlyList<object> Groups);
 
     public sealed class HfaFactory : WebApplicationFactory<Program>

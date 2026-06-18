@@ -1,4 +1,5 @@
 using HotFixAmbulance.Core;
+using Microsoft.Extensions.Options;
 
 namespace HotFixAmbulance.Elastic;
 
@@ -19,13 +20,16 @@ public sealed class ElasticLogIngestor
 
     private readonly IElasticLogSource _source;
     private readonly TimeProvider _clock;
+    private readonly int _maxDocuments;
 
-    public ElasticLogIngestor(IElasticLogSource source, TimeProvider clock)
+    public ElasticLogIngestor(IElasticLogSource source, TimeProvider clock, IOptions<ElasticOptions>? options = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(clock);
         _source = source;
         _clock = clock;
+        // When no options are wired (e.g. unit tests), truncation detection is disabled.
+        _maxDocuments = options?.Value.MaxDocuments ?? int.MaxValue;
     }
 
     public async Task<IReadOnlyList<LogEntry>> FetchAsync(
@@ -44,15 +48,18 @@ public sealed class ElasticLogIngestor
         }
 
         var window = TimeWindow.Relative(_clock.GetUtcNow(), lookback);
-        return await FetchAsync(apiName, window, cancellationToken).ConfigureAwait(false);
+        var result = await FetchAsync(apiName, window, cancellationToken).ConfigureAwait(false);
+        return result.Logs;
     }
 
     /// <summary>
     /// Fetches logs for the supplied API filtered by an absolute UTC <paramref name="window"/>.
     /// Prefer this overload over the <see cref="TimeSpan"/> one when the caller has explicit
-    /// from/to timestamps (e.g. picked by the user in the UI).
+    /// from/to timestamps (e.g. picked by the user in the UI). The returned
+    /// <see cref="IngestionResult.IsTruncated"/> flag is <c>true</c> when the fetch hit the
+    /// configured <see cref="ElasticOptions.MaxDocuments"/> cap.
     /// </summary>
-    public async Task<IReadOnlyList<LogEntry>> FetchAsync(
+    public async Task<IngestionResult> FetchAsync(
         string apiName,
         TimeWindow window,
         CancellationToken cancellationToken = default)
@@ -83,6 +90,7 @@ public sealed class ElasticLogIngestor
             }
         }
 
-        return results;
+        var isTruncated = results.Count >= _maxDocuments;
+        return new IngestionResult(results, isTruncated);
     }
 }
