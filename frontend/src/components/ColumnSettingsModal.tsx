@@ -21,7 +21,6 @@ const columnLabels: Record<string, string> = {
   exceptionType: 'Exception Type',
   message: 'Message',
   endpoint: 'Endpoint',
-  httpStatus: 'HTTP Status',
   serviceVersion: 'Service Version',
   correlationIdCount: 'Correlations',
   suggestion: 'Suggestion for Error',

@@ -14,7 +14,6 @@ import {
   Code2,
   MessageCircle,
   Route,
-  Network,
   Package,
   Link2,
   Lightbulb,
@@ -28,6 +27,7 @@ import type { ErrorGroup } from '../types';
 import { severityRank } from '../utils/severity';
 import { SeverityBadge } from './SeverityBadge';
 import { ColumnSettingsModal } from './ColumnSettingsModal';
+import { ExpandableCell } from './ExpandableCell';
 
 const columnHelper = createColumnHelper<ErrorGroup>();
 
@@ -45,11 +45,6 @@ function formatAnalysisDate(value: string): string {
   return `${day}${month}${year}`;
 }
 
-function truncate(value: string | null, max = 80): string {
-  if (!value) return '';
-  return value.length > max ? `${value.slice(0, max)}…` : value;
-}
-
 // Column metadata with icons and tooltips
 const columnMetadata: Record<string, { icon: React.ElementType; tooltip: string }> = {
   analysisIdentifier: { icon: Hash, tooltip: 'Sequential row number and analysis date' },
@@ -60,7 +55,6 @@ const columnMetadata: Record<string, { icon: React.ElementType; tooltip: string 
   exceptionType: { icon: Code2, tooltip: 'Exception type with stack trace details' },
   message: { icon: MessageCircle, tooltip: 'Error message and context information' },
   endpoint: { icon: Route, tooltip: 'API endpoint where the error occurred' },
-  httpStatus: { icon: Network, tooltip: 'HTTP status code returned' },
   serviceVersion: { icon: Package, tooltip: 'Service version when the error occurred' },
   correlationIdCount: { icon: Link2, tooltip: 'Number of unique request correlations' },
   suggestion: { icon: Lightbulb, tooltip: 'AI suggestion explaining what this error means' },
@@ -106,7 +100,6 @@ const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
   exceptionType: true,
   message: true,
   endpoint: true,
-  httpStatus: false,
   serviceVersion: false,
   correlationIdCount: true,
   suggestion: true,
@@ -209,7 +202,7 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
         ? [
             columnHelper.accessor('message', {
               header: () => <ColumnHeader columnId="message">Message</ColumnHeader>,
-              cell: (i) => <span title={i.getValue() ?? ''}>{truncate(i.getValue())}</span>,
+              cell: (i) => <ExpandableCell value={i.getValue()} title="Message" />,
             }),
           ]
         : []),
@@ -217,14 +210,6 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
         ? [
             columnHelper.accessor('endpoint', {
               header: () => <ColumnHeader columnId="endpoint">Endpoint</ColumnHeader>,
-              cell: (i) => i.getValue() ?? '—',
-            }),
-          ]
-        : []),
-      ...(visibleColumns.httpStatus
-        ? [
-            columnHelper.accessor('httpStatus', {
-              header: () => <ColumnHeader columnId="httpStatus">HTTP</ColumnHeader>,
               cell: (i) => i.getValue() ?? '—',
             }),
           ]
@@ -249,12 +234,12 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
             columnHelper.accessor('suggestion', {
               header: () => <ColumnHeader columnId="suggestion">Suggestion for Error</ColumnHeader>,
               cell: (i) => (
-                <span
-                  data-testid="suggestion"
-                  className="px-3 py-2 rounded bg-sky-50 text-slate-700 block hover:bg-sky-100 transition-colors"
-                >
-                  {i.getValue() ?? '—'}
-                </span>
+                <ExpandableCell
+                  dataTestId="suggestion"
+                  value={i.getValue()}
+                  title="Suggestion for Error"
+                  className="px-3 py-2 rounded bg-sky-50 text-slate-700 hover:bg-sky-100 transition-colors"
+                />
               ),
             }),
           ]
@@ -264,12 +249,13 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
             columnHelper.accessor('howToFix', {
               header: () => <ColumnHeader columnId="howToFix">How to fix</ColumnHeader>,
               cell: (i) => (
-                <pre
-                  data-testid="howtofix"
-                  className="whitespace-pre-wrap font-mono text-xs px-3 py-2 rounded bg-emerald-50 text-slate-700 hover:bg-emerald-100 transition-colors"
-                >
-                  {i.getValue() ?? '—'}
-                </pre>
+                <ExpandableCell
+                  dataTestId="howtofix"
+                  value={i.getValue()}
+                  title="How to fix"
+                  variant="mono"
+                  className="px-3 py-2 rounded bg-emerald-50 text-slate-700 hover:bg-emerald-100 transition-colors"
+                />
               ),
             }),
           ]

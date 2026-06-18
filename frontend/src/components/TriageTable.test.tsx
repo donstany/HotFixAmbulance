@@ -74,11 +74,23 @@ describe('<TriageTable />', () => {
     suggestions.forEach((s, i) => expect(s).not.toEqual(fixes[i]));
   });
 
-  it('truncates long messages with a tooltip', () => {
-    const long = 'x'.repeat(200);
+  it('truncates long messages and reveals an expand button', () => {
+    const long = 'x'.repeat(500);
     render(<TriageTable groups={[{ ...SAMPLE[0], message: long }]} analysisDateUtc="2026-06-18T09:30:00Z" />);
-    const cell = screen.getByTitle(long);
-    expect(cell.textContent ?? '').toHaveLength(81); // 80 chars + ellipsis
+    // The preview keeps the full text in `title=` for hover; expand button opens a modal.
+    const preview = screen.getByTitle(long);
+    expect(preview.textContent ?? '').toHaveLength(241); // 240 chars + ellipsis
+    expect(screen.getByRole('button', { name: /show full message/i })).toBeInTheDocument();
+  });
+
+  it('opens a modal with the full content when the expand button is clicked', async () => {
+    const long = 'x'.repeat(500);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<TriageTable groups={[{ ...SAMPLE[0], message: long }]} analysisDateUtc="2026-06-18T09:30:00Z" />);
+    await user.click(screen.getByRole('button', { name: /show full message/i }));
+    const dialog = screen.getByRole('dialog', { name: /message/i });
+    expect(within(dialog).getByText(long)).toBeInTheDocument();
   });
 
   it('renders the stack frame (file:line · symbol) under the exception when present', () => {
