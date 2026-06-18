@@ -165,6 +165,21 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         getDoc.RootElement.GetProperty("toUtc").GetString().Should().Be("2026-06-18T10:00:00+00:00");
     }
 
+    [Fact]
+    public async Task POST_triage_with_absolute_range_exceeding_MaxRangeDays_returns_400()
+    {
+        using var client = _factory.CreateClient();
+        // Default MaxRangeDays = 30; pick a 31-day span.
+        var fromUtc = "2026-05-01T00:00:00Z";
+        var toUtc = "2026-06-02T00:00:00Z";
+
+        var response = await client.PostAsync(
+            new Uri($"/api/triage/checkout-api?fromUtc={fromUtc}&toUtc={toUtc}", UriKind.Relative),
+            content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private sealed record TriagePayload(Guid Id, string ApiName, int TotalLogs, IReadOnlyList<object> Groups);
 
     public sealed class HfaFactory : WebApplicationFactory<Program>

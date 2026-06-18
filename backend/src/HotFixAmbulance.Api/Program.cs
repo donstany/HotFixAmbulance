@@ -24,6 +24,10 @@ builder.Services.AddHotFixGitInsights(builder.Configuration);
 builder.Services.AddHotFixPersistence(builder.Configuration);
 builder.Services.AddSingleton<IAnalysisStrategy, HeuristicAnalyzer>();
 
+builder.Services.AddOptions<TriageOptions>()
+    .Bind(builder.Configuration.GetSection(TriageOptions.SectionName))
+    .ValidateDataAnnotations();
+
 // ApisConfig is loaded eagerly from a JSON file pointed to by Apis:ConfigPath.
 // An empty string in config counts as "use default" — checked-in appsettings ships
 // with `"Apis": { "ConfigPath": "" }` as a placeholder.
@@ -103,6 +107,7 @@ app.MapPost("/api/triage/{apiName}", async (
     [FromQuery] DateTimeOffset? toUtc,
     TriageService service,
     TimeProvider clock,
+    Microsoft.Extensions.Options.IOptions<TriageOptions> triageOptions,
     CancellationToken ct) =>
 {
     var hasLookback = lookbackHours is > 0;
@@ -115,6 +120,8 @@ app.MapPost("/api/triage/{apiName}", async (
             statusCode: StatusCodes.Status400BadRequest);
     }
 
+    var opts = triageOptions.Value;
+    var maxSpan = TimeSpan.FromDays(opts.MaxRangeDays);
     TimeWindow window;
     try
     {
@@ -126,12 +133,12 @@ app.MapPost("/api/triage/{apiName}", async (
                     detail: "Both fromUtc and toUtc are required when using an absolute time range.",
                     statusCode: StatusCodes.Status400BadRequest);
             }
-            window = TimeWindow.Absolute(fromUtc.Value, toUtc.Value);
+            window = TimeWindow.Absolute(fromUtc.Value, toUtc.Value, maxSpan);
         }
         else
         {
-            var lookback = TimeSpan.FromHours(hasLookback ? lookbackHours!.Value : 24);
-            window = TimeWindow.Relative(clock.GetUtcNow(), lookback);
+            var lookback = TimeSpan.FromHours(hasLookback ? lookbackHours!.Value : opts.DefaultLookbackHours);
+            window = TimeWindow.Relative(clock.GetUtcNow(), lookback, maxSpan);
         }
     }
     catch (ArgumentException ex)
