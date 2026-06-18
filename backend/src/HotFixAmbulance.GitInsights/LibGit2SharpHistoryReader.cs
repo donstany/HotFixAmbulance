@@ -133,4 +133,161 @@ public sealed class LibGit2SharpHistoryReader : IGitHistoryReader
         using var patch = repo.Diff.Compare<TreeChanges>(parent.Tree, commit.Tree);
         return patch.Select(c => c.Path).ToArray();
     }
+
+    public Task<FileLineContext?> GetLineContextAsync(
+        string repoPath,
+        string fileHint,
+        int line,
+        int contextLines = 2,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repoPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileHint);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(line);
+        ArgumentOutOfRangeException.ThrowIfNegative(contextLines);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!Repository.IsValid(repoPath))
+        {
+            return Task.FromResult<FileLineContext?>(null);
+        }
+
+        using var repo = new Repository(repoPath);
+        var head = repo.Head?.Tip;
+        if (head is null)
+        {
+            return Task.FromResult<FileLineContext?>(null);
+        }
+
+        var resolvedPath = ResolvePathInTree(head.Tree, fileHint);
+        if (resolvedPath is null)
+        {
+            return Task.FromResult<FileLineContext?>(null);
+        }
+
+        var treeEntry = head[resolvedPath];
+        if (treeEntry?.Target is not Blob blob)
+        {
+            return Task.FromResult<FileLineContext?>(null);
+        }
+
+        string content;
+        using (var reader = new StreamReader(blob.GetContentStream()))
+        {
+            content = reader.ReadToEnd();
+        }
+        var allLines = content.Split('\n');
+        // Strip trailing CR left over from CRLF endings.
+        for (var i = 0; i < allLines.Length; i++)
+        {
+            if (allLines[i].EndsWith('\r'))
+            {
+                allLines[i] = allLines[i][..^1];
+            }
+        }
+
+        if (line > allLines.Length)
+        {
+            return Task.FromResult<FileLineContext?>(null);
+        }
+
+        var startIndex = Math.Max(0, line - 1 - contextLines);
+        var endIndex = Math.Min(allLines.Length - 1, line - 1 + contextLines);
+        var slice = new string[endIndex - startIndex + 1];
+        Array.Copy(allLines, startIndex, slice, 0, slice.Length);
+
+        CommitSummary? blame = null;
+        try
+        {
+            var blameHunks = repo.Blame(resolvedPath, new BlameOptions
+            {
+                Strategy = BlameStrategy.Default,
+            });
+            // BlameHunk.FinalStartLineNumber is 0-based; covers ContentLineCount lines.
+            foreach (var hunk in blameHunks)
+            {
+                var start = hunk.FinalStartLineNumber + 1;
+                var endExclusive = start + hunk.LineCount;
+                if (line >= start && line < endExclusive)
+                {
+                    var c = hunk.FinalCommit;
+                    if (c is not null)
+                    {
+                        blame = new CommitSummary(
+                            Sha: c.Sha,
+                            When: c.Author.When,
+                            Author: c.Author.Name,
+                            Subject: c.MessageShort ?? string.Empty,
+                            Files: new[] { resolvedPath });
+                    }
+                    break;
+                }
+            }
+        }
+        catch (LibGit2SharpException)
+        {
+            // Blame can fail on binary or untracked content; the snippet alone is still useful.
+        }
+
+        return Task.FromResult<FileLineContext?>(new FileLineContext(
+            ResolvedPath: resolvedPath,
+            StartLine: startIndex + 1,
+            OffendingLine: line,
+            Lines: slice,
+            Blame: blame));
+    }
+
+    /// <summary>
+    /// Locates <paramref name="fileHint"/> inside <paramref name="tree"/>. Tries (in order):
+    /// direct lookup (treats <paramref name="fileHint"/> as a repo-relative path), then a
+    /// recursive walk that matches by basename or path suffix. Returns the repo-relative path
+    /// using forward slashes, or <c>null</c> when no match exists.
+    /// </summary>
+    private static string? ResolvePathInTree(Tree tree, string fileHint)
+    {
+        var normalized = fileHint.Replace('\\', '/').TrimStart('/');
+
+        // Fast path: hint already matches a tree entry.
+        if (tree[normalized] is { Target: Blob }) return normalized;
+
+        var basename = normalized.Contains('/') ? normalized[(normalized.LastIndexOf('/') + 1)..] : normalized;
+        string? suffixMatch = null;
+        string? basenameMatch = null;
+
+        var stack = new Stack<(Tree Node, string Prefix)>();
+        stack.Push((tree, string.Empty));
+        while (stack.Count > 0)
+        {
+            var (node, prefix) = stack.Pop();
+            foreach (var entry in node)
+            {
+                var full = string.IsNullOrEmpty(prefix) ? entry.Name : $"{prefix}/{entry.Name}";
+                switch (entry.TargetType)
+                {
+                    case TreeEntryTargetType.Tree:
+                        stack.Push(((Tree)entry.Target, full));
+                        break;
+                    case TreeEntryTargetType.Blob:
+                        if (full.EndsWith('/' + normalized, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(full, normalized, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return full;
+                        }
+                        if (suffixMatch is null && normalized.Contains('/')
+                            && full.EndsWith(normalized, StringComparison.OrdinalIgnoreCase))
+                        {
+                            suffixMatch = full;
+                        }
+                        if (basenameMatch is null
+                            && string.Equals(entry.Name, basename, StringComparison.OrdinalIgnoreCase))
+                        {
+                            basenameMatch = full;
+                        }
+                        break;
+                }
+            }
+        }
+
+        return suffixMatch ?? basenameMatch;
+    }
 }

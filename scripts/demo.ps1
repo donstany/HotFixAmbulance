@@ -134,8 +134,12 @@ if ($WithElastic) {
     Write-Step "demo-api will write to $ElasticUri"
 
     # CLI defaults to apis.config.json beside its binary, which doesn't exist.
-    # Point it at the example config so it can resolve demo-api.
-    $apisConfig = Join-Path $repoRoot 'config/apis.config.example.json'
+    # Prefer the real apis.config.json (which maps demo-api to the local repo so
+    # FixHintBuilder can mine origin/main for blame + code snippet); fall back to
+    # the example config when the local one is missing.
+    $apisConfigLocal   = Join-Path $repoRoot 'config/apis.config.json'
+    $apisConfigExample = Join-Path $repoRoot 'config/apis.config.example.json'
+    $apisConfig = if (Test-Path $apisConfigLocal) { $apisConfigLocal } else { $apisConfigExample }
     if (Test-Path $apisConfig) {
         $env:HFA_Apis__ConfigPath = $apisConfig
         Write-Step "CLI will use apis config: $apisConfig"

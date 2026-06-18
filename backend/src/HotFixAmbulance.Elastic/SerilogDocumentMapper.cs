@@ -74,12 +74,14 @@ internal static class SerilogDocumentMapper
         };
     }
 
-    // Matches a single CLR stack frame line, e.g.
-    //   at DemoApi.OrderProcessor.GetCustomerEmail(String customerId) in C:\repo\demo-api\BrokenServices.cs:line 53
-    // The file path is captured non-greedily so Windows drive-letter paths ("C:\repo\...")
+    // Matches a single CLR stack frame line. Both legacy and modern formatter shapes are supported:
+    //   legacy: "at DemoApi.OrderProcessor.GetCustomerEmail(String customerId) in C:\\repo\\demo-api\\BrokenServices.cs:line 53"
+    //   modern: "at async Task<decimal> DemoApi.DatabaseFailureSimulator.CreatePricingRecordAsync(...) in .../DemoDatabase.cs:line 311"
+    // The "async <ReturnType> " prefix is allowed via a non-greedy gap between `at` and the symbol.
+    // The file path is captured non-greedily so Windows drive-letter paths ("C:\\repo\\...")
     // and POSIX paths both match.
     private static readonly Regex FrameRegex = new(
-        @"^\s*at\s+(?<sym>[\w\.<>`]+(?:\.[\w<>`]+)+)\s*\([^)]*\)(?:\s+in\s+(?<file>.+?):line\s+(?<line>\d+))?",
+        @"^\s*at\s+.*?(?<sym>[\w]+(?:\.[\w<>`]+)+)\s*\([^)]*\)(?:\s+in\s+(?<file>.+?):line\s+(?<line>\d+))?",
         RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.CultureInvariant);
 
     private static (string? File, string? Symbol, int? Line) ParseTopUserFrame(string trace)

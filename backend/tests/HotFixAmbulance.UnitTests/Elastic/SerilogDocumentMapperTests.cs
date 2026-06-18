@@ -134,6 +134,32 @@ public sealed class SerilogDocumentMapperTests
         entry.StackLine.Should().Be(54);
     }
 
+    [Fact]
+    public void TryMap_parses_modern_async_frame_with_return_type_modifier()
+    {
+        // .NET's newer stack-trace formatter prefixes user frames with `async` and the return type,
+        // e.g. "at async Task<decimal> DemoApi.DatabaseFailureSimulator.CreatePricingRecordAsync(...) in ..."
+        // The regex must skip the return-type prefix and still capture the symbol.
+        const string json = """
+        {
+          "@timestamp": "2026-06-18T10:00:00.000Z",
+          "level": "Error",
+          "fields": { "Application": "demo-api" },
+          "error": {
+            "stack_trace": "Microsoft.EntityFrameworkCore.DbUpdateException: ...\n   at async Task Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)\n   at async Task<decimal> DemoApi.DatabaseFailureSimulator.CreatePricingRecordAsync(decimal subtotal, decimal loyaltyMultiplier, CancellationToken ct) in C:/Users/stan/Softuni/HotFixAmbulance/demo-api/DemoDatabase.cs:line 311\n   at async void Program.<Main>$(string[] args)+(?) => { } in C:/Users/stan/Softuni/HotFixAmbulance/demo-api/Program.cs:line 332"
+          }
+        }
+        """;
+        var element = JsonDocument.Parse(json).RootElement;
+
+        var entry = InvokeTryMap(element);
+
+        entry.Should().NotBeNull();
+        entry!.StackFile.Should().Be("DemoDatabase.cs");
+        entry.StackSymbol.Should().Be("DatabaseFailureSimulator.CreatePricingRecordAsync");
+        entry.StackLine.Should().Be(311);
+    }
+
     private static LogEntry? InvokeTryMap(JsonElement element)
     {
         // SerilogDocumentMapper is internal; exposed to tests via InternalsVisibleTo.

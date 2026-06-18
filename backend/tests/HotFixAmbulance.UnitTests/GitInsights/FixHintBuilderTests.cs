@@ -8,6 +8,19 @@ namespace HotFixAmbulance.UnitTests.GitInsights;
 
 public sealed class FixHintBuilderTests
 {
+    private static readonly string[] SnippetLines =
+    {
+        "    {",
+        "        // Real CRUD",
+        "        throw new InvalidOperationException(\"Sql; Limit reached ...\");",
+        "    }",
+        "}",
+    };
+
+    private static readonly string[] BlameFiles = { "demo-api/DemoDatabase.cs" };
+
+    private static readonly string[] SnippetOnlyLines = { "var x = 1;", "throw new Exception();" };
+
     private static ErrorGroup MakeGroup(
         string? exceptionType = "System.NullReferenceException",
         string? message = "Object reference not set to an instance of an object",
@@ -196,5 +209,93 @@ public sealed class FixHintBuilderTests
         await cache.Received(1).EnsureUpToDateAsync(
             Arg.Is<ApiRepoEntry>(e => e.Branch == "main" && e.Name == "checkout-api"),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildAsync_embeds_code_snippet_and_blame_when_line_context_available()
+    {
+        var (sut, _, reader, _) = BuildSut();
+        var snippet = new FileLineContext(
+            ResolvedPath: "demo-api/DemoDatabase.cs",
+            StartLine: 72,
+            OffendingLine: 74,
+            Lines: SnippetLines,
+            Blame: new CommitSummary(
+                Sha: "0123456789abcdef0123456789abcdef01234567",
+                When: new DateTimeOffset(2026, 6, 17, 0, 0, 0, TimeSpan.Zero),
+                Author: "Stan",
+                Subject: "Phase 10.1: real EF Core CRUD",
+                Files: BlameFiles));
+        reader.GetLineContextAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<FileLineContext?>(snippet));
+        reader.SearchCommitsAsync(Arg.Any<string>(), Arg.Any<GitSearchQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>([]));
+
+        var group = MakeGroup() with
+        {
+            StackFile = "DemoDatabase.cs",
+            StackSymbol = "DatabaseFailureSimulator.CreateTransferOnHoldAsync",
+            StackLine = 74,
+        };
+        var hint = await sut.BuildAsync("checkout-api", group);
+
+        hint.Should().NotBeNull();
+        hint!.Should().Contain("demo-api/DemoDatabase.cs:74");
+        hint.Should().Contain("DatabaseFailureSimulator.CreateTransferOnHoldAsync");
+        // Code lines + offending marker
+        hint.Should().Contain("code (from origin/main)");
+        hint.Should().Contain(">>");
+        hint.Should().Contain("throw new InvalidOperationException");
+        // Blame
+        hint.Should().Contain("blame:");
+        hint.Should().Contain("0123456");
+        hint.Should().Contain("Phase 10.1: real EF Core CRUD");
+    }
+
+    [Fact]
+    public async Task BuildAsync_invokes_line_context_with_stack_file_and_line()
+    {
+        var (sut, _, reader, _) = BuildSut();
+        string? capturedFile = null;
+        var capturedLine = 0;
+        reader.GetLineContextAsync(
+                Arg.Any<string>(),
+                Arg.Do<string>(f => capturedFile = f),
+                Arg.Do<int>(l => capturedLine = l),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<FileLineContext?>(null));
+        reader.SearchCommitsAsync(Arg.Any<string>(), Arg.Any<GitSearchQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>([]));
+
+        var group = MakeGroup() with { StackFile = "DemoDatabase.cs", StackLine = 74 };
+        await sut.BuildAsync("checkout-api", group);
+
+        capturedFile.Should().Be("DemoDatabase.cs");
+        capturedLine.Should().Be(74);
+    }
+
+    [Fact]
+    public async Task BuildAsync_returns_snippet_only_when_search_returns_no_commits()
+    {
+        var (sut, _, reader, _) = BuildSut();
+        reader.GetLineContextAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<FileLineContext?>(new FileLineContext(
+                ResolvedPath: "demo-api/Program.cs",
+                StartLine: 50,
+                OffendingLine: 51,
+                Lines: SnippetOnlyLines,
+                Blame: null)));
+        reader.SearchCommitsAsync(Arg.Any<string>(), Arg.Any<GitSearchQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<CommitSummary>>([]));
+
+        var group = MakeGroup() with { StackFile = "Program.cs", StackLine = 51 };
+        var hint = await sut.BuildAsync("checkout-api", group);
+
+        hint.Should().NotBeNull();
+        hint!.Should().Contain("demo-api/Program.cs:51");
+        hint.Should().Contain("throw new Exception");
     }
 }
