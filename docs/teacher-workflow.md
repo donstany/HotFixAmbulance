@@ -57,12 +57,12 @@ npm --prefix frontend run lint
 ```
 
 **Observe**
-- `Test summary: total: 88; failed: 0; succeeded: 88; skipped: 0`.
-- `Test Files 2 passed (2)   Tests 8 passed (8)`.
+- `Test summary: total: 134; failed: 0; succeeded: 134; skipped: 0` (123 unit + 11 integration).
+- `Test Files 5 passed (5)   Tests 19 passed (19)`.
 - ESLint runs with `--max-warnings=0` and exits cleanly.
 
 **Proves**
-- 96 real tests, all green, lint policy enforced.
+- 153 real tests (134 backend + 19 frontend), all green, lint policy enforced.
 
 ---
 
@@ -143,9 +143,11 @@ The CLI in step 4 wrote to its own SQLite next to the CLI binary. The API uses a
 ### 5a . Start the backend API (terminal A)
 
 ```powershell
-$env:HFA_Elastic__Uri       = 'http://localhost:9200'
-$env:HFA_Apis__ConfigPath   = "$PWD\config\apis.config.example.json"
-dotnet run --project backend/src/HotFixAmbulance.Api --launch-profile http
+$env:HFA_Elastic__Uri              = 'http://localhost:9200'
+$env:HFA_Apis__ConfigPath          = "$PWD\config\apis.config.json"
+$env:HFA_Persistence__ConnectionString = "Data Source=$PWD\hotfix.db"
+$env:ASPNETCORE_URLS               = 'http://localhost:5283'
+dotnet run --project backend/src/HotFixAmbulance.Api --no-launch-profile
 ```
 
 **Observe**
@@ -165,19 +167,22 @@ npm --prefix frontend run dev
 
 ```powershell
 $r = Invoke-RestMethod -Method POST -Uri 'http://localhost:5283/api/triage/demo-api?lookbackHours=1'
-"id=$($r.id)  totalLogs=$($r.totalLogs)  groups=$($r.groups.Count)"
-Start-Process "http://localhost:5173/?analysisId=$($r.id)"
+"id=$($r.id)  totalLogs=$($r.totalLogs)  groups=$($r.groups.Count)  fromUtc=$($r.fromUtc)  toUtc=$($r.toUtc)  truncated=$($r.isTruncated)"
+Start-Process "http://localhost:5173/?analysisId=$($r.id)&api=demo-api"
 ```
 
-**Observe in the browser**
-- A sortable, filterable table of error groups (TanStack Table v8).
-- **Severity** column renders the enum as text (`Error`, `Warning`, `Fatal`) — proves the JSON `StringEnumConverter` wiring.
-- The `/payments/ab` timeout group shows an **AI-generated Purpose** (LLM strategy ran on long messages).
-- **How-to-fix** is blank for `demo-api` because it isn't in `config/apis.config.example.json` — point at the file and show that `checkout-api` / `orders-api` are mapped to real repos.
+**Observe in the browser** (top-down)
+1. **Run-analysis bar** at the top — `API` dropdown populated from the new `GET /api/apis` endpoint, plus the **TimeRangePicker** (7 presets: 15m / 1h / 6h / 24h / 7d / 30d / Custom; Custom reveals two `datetime-local` inputs in browser local time, converted to UTC on submit; 30-day cap enforced client- and server-side). Click `Run analysis` to POST `/api/triage/demo-api?lookbackHours=…` (or `?fromUtc=…&toUtc=…`) and watch the URL switch to the new `analysisId`.
+2. **Header pill** below the title shows `Logs from <fromUtc> → <toUtc> (<duration>)` for the requested window (persisted on `TriageRun`).
+3. **Rerun this window** button next to the picker pre-fills the picker with the persisted From/To of the currently loaded run and POSTs the same absolute window — proves Phase 12.E round-trips through Phase 12.C persistence.
+4. **Amber `results truncated` badge** appears when Elastic hits `MaxDocuments` (default 10000). With the demo's ~960 docs this stays hidden — that's expected.
+5. A sortable, filterable **TanStack Table v8** of error groups. The **Severity** column renders the enum as `Error` / `Warning` / `Fatal` (proves the `JsonStringEnumConverter` wiring).
+6. The `/invoices/duplicate` group shows **How-to-fix** populated by `FixHintBuilder` with `Where to fix: demo-api/DemoDatabase.cs:277 - DatabaseFailureSimulator.TriggerDuplicateInvoiceAsync` followed by the offending source snippet (`>>` marker on the offending line) and `blame: <sha> by <author>` — proves `LibGit2SharpHistoryReader.GetLineContextAsync` is mining `origin/main`. Click the three-dot expand on any cell to open the full text in a styled modal (Phase 11.2 ExpandableCell + CellDetailModal).
 
 **Proves**
-- The API → DB → React → user flow works.
-- AI tooling (purpose) and Git-based fix hints are both wired and degrade gracefully when unmapped.
+- The picker → API → Elastic → analysis → DB → React → user flow works end-to-end.
+- Configurable time range (Phase 12) is wired everywhere: UI picker, API query params, CLI flags (`--from`/`--to`), SQLite persistence, and the `MaxRangeDays=30` cap from `appsettings.json` (Phase 12.F).
+- AI tooling (Suggestion via `SuggestionBuilder`, How-to-fix via `FixHintBuilder` with Git blame) is wired and degrades gracefully when an API is unmapped.
 
 ---
 
@@ -255,11 +260,11 @@ docker compose -f infra/elasticsearch/docker-compose.yml down -v
 | # | Claim | Evidence step |
 |---|---|---|
 | 1 | Runs end-to-end with one command | 4 |
-| 2 | 96 real tests, enforced on every commit | 2, 6 |
+| 2 | 153 real tests (134 backend + 19 frontend), enforced on every commit | 2, 6 |
 | 3 | Layered, testable architecture (9 projects, single-responsibility) | 3 |
 | 4 | Real Elasticsearch + ECS-to-mapper bridge, reproducible from `infra/` | 4 |
-| 5 | Backend → SQLite → API → React UI flow works | 5 |
-| 6 | AI augments the workflow (skills, prompts, generated Purpose) without replacing engineering | 5, 7 |
+| 5 | Backend → SQLite → API → React UI flow works, with configurable time range (picker, Run, Rerun, isTruncated badge, 30-day cap) | 5 |
+| 6 | AI augments the workflow (skills, prompts, generated Suggestion + Git-blame How-to-fix) without replacing engineering | 5, 7 |
 | 7 | Documented per the Softuni rubric | 1 |
 
 ---
@@ -277,4 +282,4 @@ docker compose -f infra/elasticsearch/docker-compose.yml down -v
 ---
 
 Repo: <https://github.com/myPOStech/mps-banking-hot-fix-ambulance>
-HEAD when this guide was written: `73f507c`
+HEAD when this guide was written: `2a98807` (Phase 12.G — configurable analysis time range, shared SQLite schema shim)
