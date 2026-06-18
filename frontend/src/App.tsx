@@ -66,7 +66,7 @@ function TriageView() {
         <p className="text-xs text-slate-400">analysis id {r.id}</p>
       </header>
       <MetricsPanel errorGroups={r.groups} />
-      <TriageTable groups={r.groups} />
+      <TriageTable groups={r.groups} analysisDateUtc={r.requestedAtUtc} />
     </div>
   );
 }

@@ -41,26 +41,31 @@ const SAMPLE: ErrorGroup[] = [
 ];
 
 describe('<TriageTable />', () => {
-  it('renders all visible columns by default', () => {
-    render(<TriageTable groups={SAMPLE} />);
+  it('renders the analysis identifier column as the first visible column', () => {
+    render(<TriageTable groups={SAMPLE} analysisDateUtc="2026-06-18T09:30:00Z" />);
+
     const headers = screen.getAllByRole('columnheader');
-    expect(headers).toHaveLength(10);
+    expect(headers).toHaveLength(11);
+
+    const rows = screen.getAllByRole('row').slice(1); // skip header
+    expect(within(rows[0]).getAllByRole('cell')[0]).toHaveTextContent('1-18062026');
+    expect(within(rows[1]).getAllByRole('cell')[0]).toHaveTextContent('2-18062026');
   });
 
   it('sorts Fatal above Warning by default', () => {
-    render(<TriageTable groups={SAMPLE} />);
+    render(<TriageTable groups={SAMPLE} analysisDateUtc="2026-06-18T09:30:00Z" />);
     const rows = screen.getAllByRole('row').slice(1); // skip header
     const firstRowBadge = within(rows[0]).getByTestId('severity-badge');
     expect(firstRowBadge).toHaveTextContent('Fatal');
   });
 
   it('renders a "Suggestion for Error" column header', () => {
-    render(<TriageTable groups={SAMPLE} />);
+    render(<TriageTable groups={SAMPLE} analysisDateUtc="2026-06-18T09:30:00Z" />);
     expect(screen.getByRole('columnheader', { name: /suggestion for error/i })).toBeInTheDocument();
   });
 
   it('shows the suggestion and howToFix AI columns with distinct text', () => {
-    render(<TriageTable groups={SAMPLE} />);
+    render(<TriageTable groups={SAMPLE} analysisDateUtc="2026-06-18T09:30:00Z" />);
     expect(screen.getByText('OOM under load')).toBeInTheDocument();
     expect(screen.getByText(/beef456/)).toBeInTheDocument();
     // The two AI columns must render different content per row.
@@ -71,13 +76,13 @@ describe('<TriageTable />', () => {
 
   it('truncates long messages with a tooltip', () => {
     const long = 'x'.repeat(200);
-    render(<TriageTable groups={[{ ...SAMPLE[0], message: long }]} />);
+    render(<TriageTable groups={[{ ...SAMPLE[0], message: long }]} analysisDateUtc="2026-06-18T09:30:00Z" />);
     const cell = screen.getByTitle(long);
     expect(cell.textContent ?? '').toHaveLength(81); // 80 chars + ellipsis
   });
 
   it('renders the stack frame (file:line · symbol) under the exception when present', () => {
-    render(<TriageTable groups={SAMPLE} />);
+    render(<TriageTable groups={SAMPLE} analysisDateUtc="2026-06-18T09:30:00Z" />);
     const frame = screen.getByTestId('stackframe');
     expect(frame.textContent).toMatch(/PaymentGateway\.cs:88/);
     expect(frame.textContent).toMatch(/PaymentGateway\.AuthorizeAsync/);

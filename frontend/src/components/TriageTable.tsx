@@ -36,6 +36,15 @@ function shortIso(value: string | null): string {
   return value.replace('T', ' ').replace(/\..*$/, '');
 }
 
+function formatAnalysisDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const year = String(date.getUTCFullYear());
+  return `${day}${month}${year}`;
+}
+
 function truncate(value: string | null, max = 80): string {
   if (!value) return '';
   return value.length > max ? `${value.slice(0, max)}…` : value;
@@ -43,6 +52,7 @@ function truncate(value: string | null, max = 80): string {
 
 // Column metadata with icons and tooltips
 const columnMetadata: Record<string, { icon: React.ElementType; tooltip: string }> = {
+  analysisIdentifier: { icon: Hash, tooltip: 'Sequential row number and analysis date' },
   severity: { icon: AlertCircle, tooltip: 'Error severity level: Fatal, Error, or Warning' },
   count: { icon: Hash, tooltip: 'Number of occurrences of this error' },
   firstSeenUtc: { icon: Clock, tooltip: 'When this error was first detected' },
@@ -104,11 +114,11 @@ const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
 };
 
 /**
- * 12-column triage table: 10 raw facts + Suggestion-for-Error + How-to-Fix.
+ * 13-column triage table: analysis identifier + 10 raw facts + Suggestion-for-Error + How-to-Fix.
  * Severity column is sorted by numeric rank so Fatal > Error > Warning.
  * Columns can be toggled via settings modal.
  */
-export function TriageTable({ groups }: { groups: ErrorGroup[] }) {
+export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[]; analysisDateUtc: string }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'severity', desc: true }]);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -129,6 +139,14 @@ export function TriageTable({ groups }: { groups: ErrorGroup[] }) {
 
   const columns = useMemo(
     () => [
+      columnHelper.display({
+        id: 'analysisIdentifier',
+        header: () => <ColumnHeader columnId="analysisIdentifier">ID</ColumnHeader>,
+        cell: (info) => {
+          const visibleIndex = info.table.getRowModel().rows.findIndex((row) => row.id === info.row.id);
+          return `${visibleIndex + 1}-${formatAnalysisDate(analysisDateUtc)}`;
+        },
+      }),
       ...(visibleColumns.severity
         ? [
             columnHelper.accessor('severity', {
@@ -257,7 +275,7 @@ export function TriageTable({ groups }: { groups: ErrorGroup[] }) {
           ]
         : []),
     ],
-    [visibleColumns],
+    [analysisDateUtc, visibleColumns],
   );
 
   const table = useReactTable({
