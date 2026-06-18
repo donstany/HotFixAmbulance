@@ -8,10 +8,15 @@ vi.mock('./api', () => ({
     apiName: 'demo-api',
     requestedAtUtc: '2026-06-18T09:30:00Z',
     lookback: '24h',
+    fromUtc: '2026-06-17T09:30:00Z',
+    toUtc: '2026-06-18T09:30:00Z',
+    isTruncated: false,
     totalLogs: 12,
     groups: [],
   }),
   fetchTriageById: vi.fn(),
+  fetchApiNames: vi.fn().mockResolvedValue(['demo-api', 'checkout-api']),
+  runTriage: vi.fn(),
 }));
 
 describe('<App />', () => {
