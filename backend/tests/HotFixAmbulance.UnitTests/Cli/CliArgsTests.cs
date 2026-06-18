@@ -111,4 +111,93 @@ public sealed class CliArgsTests
         result.IsValid.Should().BeFalse();
         result.Error.Should().Contain("format");
     }
+
+    [Fact]
+    public void Parse_accepts_absolute_from_and_to()
+    {
+        var result = CliArgs.Parse(["checkout-api", "--from", "2026-06-18T08:00:00Z", "--to", "2026-06-18T10:00:00Z"]);
+
+        result.IsValid.Should().BeTrue();
+        result.Args!.FromUtc.Should().Be(new DateTimeOffset(2026, 6, 18, 8, 0, 0, TimeSpan.Zero));
+        result.Args.ToUtc.Should().Be(new DateTimeOffset(2026, 6, 18, 10, 0, 0, TimeSpan.Zero));
+        result.Args.Lookback.Should().Be(TimeSpan.FromHours(2));
+    }
+
+    [Fact]
+    public void Parse_accepts_equals_form_for_from_and_to()
+    {
+        var result = CliArgs.Parse(["checkout-api", "--from=2026-06-18T08:00:00Z", "--to=2026-06-18T10:00:00Z"]);
+
+        result.IsValid.Should().BeTrue();
+        result.Args!.FromUtc.Should().NotBeNull();
+        result.Args.ToUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Parse_rejects_from_without_to()
+    {
+        var result = CliArgs.Parse(["checkout-api", "--from", "2026-06-18T08:00:00Z"]);
+
+        result.IsValid.Should().BeFalse();
+        result.Error.Should().Contain("--from and --to");
+    }
+
+    [Fact]
+    public void Parse_rejects_to_without_from()
+    {
+        var result = CliArgs.Parse(["checkout-api", "--to", "2026-06-18T10:00:00Z"]);
+
+        result.IsValid.Should().BeFalse();
+        result.Error.Should().Contain("--from and --to");
+    }
+
+    [Fact]
+    public void Parse_rejects_lookback_combined_with_absolute_window()
+    {
+        var result = CliArgs.Parse(["checkout-api", "--lookback", "6h", "--from", "2026-06-18T08:00:00Z", "--to", "2026-06-18T10:00:00Z"]);
+
+        result.IsValid.Should().BeFalse();
+        result.Error.Should().Contain("mutually exclusive");
+    }
+
+    [Fact]
+    public void Parse_rejects_inverted_absolute_range()
+    {
+        var result = CliArgs.Parse(["checkout-api", "--from", "2026-06-18T10:00:00Z", "--to", "2026-06-18T08:00:00Z"]);
+
+        result.IsValid.Should().BeFalse();
+        result.Error.Should().Contain("earlier than");
+    }
+
+    [Fact]
+    public void Parse_rejects_invalid_iso_for_from()
+    {
+        var result = CliArgs.Parse(["checkout-api", "--from", "yesterday", "--to", "2026-06-18T10:00:00Z"]);
+
+        result.IsValid.Should().BeFalse();
+        result.Error.Should().Contain("--from");
+    }
+
+    [Fact]
+    public void ToWindow_returns_absolute_window_when_from_and_to_set()
+    {
+        var args = CliArgs.Parse(["checkout-api", "--from", "2026-06-18T08:00:00Z", "--to", "2026-06-18T10:00:00Z"]).Args!;
+
+        var window = args.ToWindow(new DateTimeOffset(2026, 6, 18, 15, 0, 0, TimeSpan.Zero));
+
+        window.FromUtc.Should().Be(new DateTimeOffset(2026, 6, 18, 8, 0, 0, TimeSpan.Zero));
+        window.ToUtc.Should().Be(new DateTimeOffset(2026, 6, 18, 10, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void ToWindow_returns_relative_window_anchored_at_now_when_no_absolute_window()
+    {
+        var args = CliArgs.Parse(["checkout-api", "--lookback", "6h"]).Args!;
+        var now = new DateTimeOffset(2026, 6, 18, 15, 0, 0, TimeSpan.Zero);
+
+        var window = args.ToWindow(now);
+
+        window.ToUtc.Should().Be(now);
+        window.FromUtc.Should().Be(now - TimeSpan.FromHours(6));
+    }
 }

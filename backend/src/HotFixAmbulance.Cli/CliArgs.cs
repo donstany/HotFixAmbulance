@@ -1,4 +1,5 @@
 using System.Globalization;
+using HotFixAmbulance.Core;
 
 namespace HotFixAmbulance.Cli;
 
@@ -15,10 +16,30 @@ public enum CliOutputFormat
 /// <summary>
 /// Parsed, validated CLI arguments for <c>/hot-fix-ambulance</c>.
 /// </summary>
-public sealed record CliArgs(string ApiName, TimeSpan Lookback, CliOutputFormat Format, bool OpenBrowser)
+public sealed record CliArgs(
+    string ApiName,
+    TimeSpan Lookback,
+    CliOutputFormat Format,
+    bool OpenBrowser,
+    DateTimeOffset? FromUtc = null,
+    DateTimeOffset? ToUtc = null)
 {
     private const string UsageLine =
-        "Usage: hot-fix-ambulance <apiName> [--lookback=24h] [--format=json|table] [--no-open]";
+        "Usage: hot-fix-ambulance <apiName> [--lookback=24h | --from=<iso> --to=<iso>] [--format=json|table] [--no-open]";
+
+    /// <summary>
+    /// Builds the <see cref="TimeWindow"/> for this run. Returns an absolute window when both
+    /// <see cref="FromUtc"/> and <see cref="ToUtc"/> are set; otherwise a relative window
+    /// anchored at <paramref name="now"/> with <see cref="Lookback"/> as the duration.
+    /// </summary>
+    public TimeWindow ToWindow(DateTimeOffset now)
+    {
+        if (FromUtc is { } from && ToUtc is { } to)
+        {
+            return TimeWindow.Absolute(from, to);
+        }
+        return TimeWindow.Relative(now, Lookback);
+    }
 
     /// <summary>
     /// Pure parser — no I/O. Returns either a populated <see cref="CliArgs"/>
@@ -35,8 +56,11 @@ public sealed record CliArgs(string ApiName, TimeSpan Lookback, CliOutputFormat 
 
         var apiName = args[0];
         var lookback = TimeSpan.FromHours(24);
+        var lookbackExplicit = false;
         var format = CliOutputFormat.Json;
         var openBrowser = true;
+        DateTimeOffset? fromUtc = null;
+        DateTimeOffset? toUtc = null;
 
         for (var i = 1; i < args.Count; i++)
         {
@@ -56,6 +80,35 @@ public sealed record CliArgs(string ApiName, TimeSpan Lookback, CliOutputFormat 
                             return CliArgsResult.Fail($"Invalid --lookback value '{value}'. Expected forms: 24h, 60m, 2d, or positive integer hours.");
                         }
                         lookback = parsed;
+                        lookbackExplicit = true;
+                        break;
+                    }
+                case "--from":
+                    {
+                        var value = inlineValue ?? Next(args, ref i, flag);
+                        if (value is null)
+                        {
+                            return CliArgsResult.Fail("--from requires an ISO-8601 timestamp (e.g. 2026-06-18T08:00:00Z).");
+                        }
+                        if (!TryParseIso(value, out var parsed))
+                        {
+                            return CliArgsResult.Fail($"Invalid --from value '{value}'. Expected ISO-8601 (e.g. 2026-06-18T08:00:00Z).");
+                        }
+                        fromUtc = parsed;
+                        break;
+                    }
+                case "--to":
+                    {
+                        var value = inlineValue ?? Next(args, ref i, flag);
+                        if (value is null)
+                        {
+                            return CliArgsResult.Fail("--to requires an ISO-8601 timestamp (e.g. 2026-06-18T10:00:00Z).");
+                        }
+                        if (!TryParseIso(value, out var parsed))
+                        {
+                            return CliArgsResult.Fail($"Invalid --to value '{value}'. Expected ISO-8601 (e.g. 2026-06-18T10:00:00Z).");
+                        }
+                        toUtc = parsed;
                         break;
                     }
                 case "--format":
@@ -80,7 +133,29 @@ public sealed record CliArgs(string ApiName, TimeSpan Lookback, CliOutputFormat 
             }
         }
 
-        return CliArgsResult.Ok(new CliArgs(apiName, lookback, format, openBrowser));
+        // Mutex + completeness validation for absolute window.
+        var hasFrom = fromUtc is not null;
+        var hasTo = toUtc is not null;
+        if (hasFrom != hasTo)
+        {
+            return CliArgsResult.Fail("--from and --to must be supplied together.");
+        }
+        if (hasFrom && lookbackExplicit)
+        {
+            return CliArgsResult.Fail("--lookback is mutually exclusive with --from/--to.");
+        }
+        if (hasFrom && fromUtc >= toUtc)
+        {
+            return CliArgsResult.Fail("--from must be earlier than --to.");
+        }
+
+        // When an absolute window is supplied, expose its duration as Lookback for back-compat.
+        if (hasFrom)
+        {
+            lookback = toUtc!.Value - fromUtc!.Value;
+        }
+
+        return CliArgsResult.Ok(new CliArgs(apiName, lookback, format, openBrowser, fromUtc, toUtc));
     }
 
     private static (string flag, string? inlineValue) SplitFlag(string token)
@@ -124,6 +199,15 @@ public sealed record CliArgs(string ApiName, TimeSpan Lookback, CliOutputFormat 
 
         result = multiplier * n;
         return true;
+    }
+
+    private static bool TryParseIso(string raw, out DateTimeOffset result)
+    {
+        return DateTimeOffset.TryParse(
+            raw,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out result);
     }
 }
 

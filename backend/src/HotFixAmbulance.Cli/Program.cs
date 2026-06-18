@@ -54,7 +54,9 @@ try
 {
     using var runScope = host.Services.CreateScope();
     var triage = runScope.ServiceProvider.GetRequiredService<TriageService>();
-    var result = await triage.RunAsync(cli.ApiName, cli.Lookback).ConfigureAwait(false);
+    var clock = runScope.ServiceProvider.GetRequiredService<TimeProvider>();
+    var window = cli.ToWindow(clock.GetUtcNow());
+    var result = await triage.RunAsync(cli.ApiName, window).ConfigureAwait(false);
 
     switch (cli.Format)
     {
