@@ -180,6 +180,21 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task POST_triage_with_fractional_lookbackHours_succeeds()
+    {
+        // The TimeRangePicker '15m' preset sends lookbackHours=0.25; this must not 400.
+        using var client = _factory.CreateClient();
+        var response = await client.PostAsync(
+            new Uri("/api/triage/checkout-api?lookbackHours=0.25", UriKind.Relative),
+            content: null);
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        doc.RootElement.GetProperty("lookback").GetString().Should().Be("00:15:00");
+    }
+
     private sealed record TriagePayload(Guid Id, string ApiName, int TotalLogs, IReadOnlyList<object> Groups);
 
     public sealed class HfaFactory : WebApplicationFactory<Program>

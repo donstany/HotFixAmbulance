@@ -67,7 +67,7 @@ app.MapGet("/api/apis", (ApisConfig apis) =>
 
 app.MapPost("/api/triage/{apiName}", async (
     string apiName,
-    [FromQuery] int? lookbackHours,
+    [FromQuery] double? lookbackHours,
     [FromQuery] DateTimeOffset? fromUtc,
     [FromQuery] DateTimeOffset? toUtc,
     TriageService service,
