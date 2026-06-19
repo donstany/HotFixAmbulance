@@ -15,4 +15,5 @@ public sealed record TriageRunHeader(
     int TotalLogs,
     bool IsTruncated,
     int TotalGroups,
-    TriageSummary Summary);
+    TriageSummary Summary,
+    string? AnalyzedBy = null);

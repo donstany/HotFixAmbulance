@@ -16,6 +16,7 @@ public static class GitInsightsServiceCollectionExtensions
         services.AddSingleton<IGitRepoCache, LibGit2SharpRepoCache>();
         services.AddSingleton<IGitHistoryReader, LibGit2SharpHistoryReader>();
         services.AddSingleton<FixHintBuilder>();
+        services.AddSingleton<IFixHintSource>(sp => sp.GetRequiredService<FixHintBuilder>());
         return services;
     }
 }

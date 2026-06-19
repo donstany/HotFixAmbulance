@@ -42,6 +42,12 @@ public static class HotFixDbContextSchema
                 .ExecuteSqlRawAsync("ALTER TABLE TriageRuns ADD COLUMN ToUtc TEXT NULL", cancellationToken)
                 .ConfigureAwait(false);
         }
+        if (!existingColumns.Contains("AnalyzedBy"))
+        {
+            await db.Database
+                .ExecuteSqlRawAsync("ALTER TABLE TriageRuns ADD COLUMN AnalyzedBy TEXT NULL", cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     private static async Task<HashSet<string>> GetTriageRunColumnsAsync(HotFixDbContext db, CancellationToken cancellationToken)

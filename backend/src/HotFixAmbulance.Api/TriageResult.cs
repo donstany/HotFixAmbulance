@@ -17,4 +17,5 @@ public sealed record TriageResult(
     DateTimeOffset ToUtc,
     int TotalLogs,
     bool IsTruncated,
-    IReadOnlyList<ErrorGroup> Groups);
+    IReadOnlyList<ErrorGroup> Groups,
+    string? AnalyzedBy = null);

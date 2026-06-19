@@ -13,6 +13,23 @@ public static class AnalysisStrategyNames
 
     /// <summary>Run-level tag when a run's groups were produced by more than one strategy.</summary>
     public const string Mixed = "Mixed";
+
+    /// <summary>
+    /// Reduces the per-group <see cref="EnrichedGroup.Source"/> values to a single run-level tag:
+    /// <see cref="Heuristic"/> when there are no groups, the shared strategy when all groups agree,
+    /// or <see cref="Mixed"/> when they differ.
+    /// </summary>
+    public static string Combine(IEnumerable<string> sources)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        var distinct = sources.Distinct(StringComparer.Ordinal).ToArray();
+        return distinct.Length switch
+        {
+            0 => Heuristic,
+            1 => distinct[0],
+            _ => Mixed,
+        };
+    }
 }
 
 /// <summary>An <see cref="ErrorGroup"/> after enrichment, tagged with the strategy that wrote its AI columns.</summary>

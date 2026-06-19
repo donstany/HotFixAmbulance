@@ -2,40 +2,40 @@ using System.Text.Json;
 using HotFixAmbulance.Analysis;
 using HotFixAmbulance.Core;
 using HotFixAmbulance.Elastic;
-using HotFixAmbulance.GitInsights;
 using HotFixAmbulance.Persistence;
 
 namespace HotFixAmbulance.Api;
 
 /// <summary>
 /// End-to-end pipeline behind <c>POST /api/triage/{apiName}</c>:
-/// Elastic → grouping/analysis → git-history hints → persist → response.
-/// All cross-cutting policies (timeouts, retries) live in the collaborators.
+/// Elastic → grouping/analysis → per-group AI-column enrichment → persist → response.
+/// The enricher (<see cref="IGroupEnricher"/>) owns how the AI columns are filled — git-history
+/// heuristics by default, an LLM when enabled — so this service stays strategy-agnostic.
 /// </summary>
 public sealed class TriageService
 {
     private readonly ElasticLogIngestor _ingestor;
     private readonly IAnalysisStrategy _analyzer;
-    private readonly FixHintBuilder _hinter;
+    private readonly IGroupEnricher _enricher;
     private readonly ITriageRunRepository _repository;
     private readonly TimeProvider _clock;
 
     public TriageService(
         ElasticLogIngestor ingestor,
         IAnalysisStrategy analyzer,
-        FixHintBuilder hinter,
+        IGroupEnricher enricher,
         ITriageRunRepository repository,
         TimeProvider clock)
     {
         ArgumentNullException.ThrowIfNull(ingestor);
         ArgumentNullException.ThrowIfNull(analyzer);
-        ArgumentNullException.ThrowIfNull(hinter);
+        ArgumentNullException.ThrowIfNull(enricher);
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentNullException.ThrowIfNull(clock);
 
         _ingestor = ingestor;
         _analyzer = analyzer;
-        _hinter = hinter;
+        _enricher = enricher;
         _repository = repository;
         _clock = clock;
     }
@@ -69,11 +69,15 @@ public sealed class TriageService
         var groups = _analyzer.Analyze(logs);
 
         var enriched = new List<ErrorGroup>(groups.Count);
+        var sources = new List<string>(groups.Count);
         foreach (var g in groups)
         {
-            var howToFix = await _hinter.BuildAsync(apiName, g, cancellationToken).ConfigureAwait(false);
-            enriched.Add(howToFix is null ? g : g with { HowToFix = howToFix });
+            var result = await _enricher.EnrichAsync(apiName, g, cancellationToken).ConfigureAwait(false);
+            enriched.Add(result.Group);
+            sources.Add(result.Source);
         }
+
+        var analyzedBy = AnalysisStrategyNames.Combine(sources);
 
         var run = new TriageRun
         {
@@ -86,6 +90,7 @@ public sealed class TriageService
             TotalLogs = logs.Count,
             GroupCount = enriched.Count,
             ErrorGroupsJson = JsonSerializer.Serialize(enriched),
+            AnalyzedBy = analyzedBy,
         };
 
         await _repository.AddAsync(run, cancellationToken).ConfigureAwait(false);
@@ -99,6 +104,7 @@ public sealed class TriageService
             window.ToUtc,
             run.TotalLogs,
             ingestion.IsTruncated,
-            enriched);
+            enriched,
+            analyzedBy);
     }
 }

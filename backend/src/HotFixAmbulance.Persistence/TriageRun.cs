@@ -29,4 +29,11 @@ public sealed class TriageRun
 
     /// <summary>JSON-serialized <see cref="IReadOnlyList{ErrorGroup}"/> for the triage table.</summary>
     public required string ErrorGroupsJson { get; init; }
+
+    /// <summary>
+    /// Which analysis strategy produced this run's AI columns: <c>Heuristic</c>, <c>Llm</c>, or
+    /// <c>Mixed</c> (some groups fell back). Nullable for back-compat with rows persisted before
+    /// Milestone 2; <c>Rehydrate</c> tolerates null.
+    /// </summary>
+    public string? AnalyzedBy { get; init; }
 }

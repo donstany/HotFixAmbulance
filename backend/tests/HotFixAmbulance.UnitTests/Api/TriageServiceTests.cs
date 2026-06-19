@@ -31,7 +31,7 @@ public sealed class TriageServiceTests
                     FixHintBuilder Hinter,
                     ITriageRunRepository Repo,
                     IGitRepoCache Cache,
-                    IGitHistoryReader Reader) BuildSut()
+                    IGitHistoryReader Reader) BuildSut(IGroupEnricher? enricher = null)
     {
         var clock = new FakeClock(FixedNow);
         var source = Substitute.For<IElasticLogSource>();
@@ -56,7 +56,9 @@ public sealed class TriageServiceTests
         repo.AddAsync(Arg.Any<TriageRun>(), Arg.Any<CancellationToken>())
             .Returns(ci => Task.FromResult(ci.Arg<TriageRun>()));
 
-        var sut = new TriageService(ingestor, analyzer, hinter, repo, clock);
+        // Default path mirrors production: the deterministic git enricher wrapping FixHintBuilder.
+        var enr = enricher ?? new GitFixHintEnricher(hinter);
+        var sut = new TriageService(ingestor, analyzer, enr, repo, clock);
         return (sut, source, hinter, repo, cache, reader);
     }
 
@@ -131,6 +133,35 @@ public sealed class TriageServiceTests
                 && r.GroupCount == 1
                 && r.Lookback == TimeSpan.FromHours(24)
                 && !string.IsNullOrEmpty(r.ErrorGroupsJson)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunAsync_tags_AnalyzedBy_Heuristic_for_the_default_git_enricher()
+    {
+        var (sut, source, _, _, _, _) = BuildSut();
+        source.SearchAsync(Arg.Any<LogQuery>(), Arg.Any<CancellationToken>()).Returns(ToAsync([Log()]));
+
+        var result = await sut.RunAsync("checkout-api", TimeSpan.FromHours(24));
+
+        result.AnalyzedBy.Should().Be("Heuristic");
+    }
+
+    [Fact]
+    public async Task RunAsync_aggregates_AnalyzedBy_from_enricher_sources_and_persists_it()
+    {
+        var enricher = Substitute.For<IGroupEnricher>();
+        enricher.EnrichAsync(Arg.Any<string>(), Arg.Any<ErrorGroup>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(new EnrichedGroup(ci.Arg<ErrorGroup>(), "Llm")));
+        var (sut, source, _, repo, _, _) = BuildSut(enricher);
+        source.SearchAsync(Arg.Any<LogQuery>(), Arg.Any<CancellationToken>())
+            .Returns(ToAsync([Log(), Log(Severity.Fatal, ex: "System.OutOfMemoryException", ep: "/orders")]));
+
+        var result = await sut.RunAsync("checkout-api", TimeSpan.FromHours(24));
+
+        result.AnalyzedBy.Should().Be("Llm", "all groups were enriched by the LLM strategy");
+        await repo.Received(1).AddAsync(
+            Arg.Is<TriageRun>(r => r.AnalyzedBy == "Llm"),
             Arg.Any<CancellationToken>());
     }
 

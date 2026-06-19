@@ -25,7 +25,7 @@ public sealed class TriageRunRepositoryTests : IAsyncLifetime, IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private static TriageRun MakeRun(string api = "checkout-api", DateTimeOffset? at = null) => new()
+    private static TriageRun MakeRun(string api = "checkout-api", DateTimeOffset? at = null, string? analyzedBy = null) => new()
     {
         Id = Guid.NewGuid(),
         ApiName = api,
@@ -34,6 +34,7 @@ public sealed class TriageRunRepositoryTests : IAsyncLifetime, IDisposable
         TotalLogs = 1,
         GroupCount = 1,
         ErrorGroupsJson = "[]",
+        AnalyzedBy = analyzedBy,
     };
 
     [Fact]
@@ -132,5 +133,24 @@ public sealed class TriageRunRepositoryTests : IAsyncLifetime, IDisposable
         fetched.Should().NotBeNull();
         fetched!.FromUtc.Should().BeNull();
         fetched.ToUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AddAsync_persists_AnalyzedBy_and_round_trips_it()
+    {
+        var added = await _sut.AddAsync(MakeRun(analyzedBy: "Llm"));
+        var fetched = await _sut.GetByIdAsync(added.Id);
+
+        fetched.Should().NotBeNull();
+        fetched!.AnalyzedBy.Should().Be("Llm");
+    }
+
+    [Fact]
+    public async Task AddAsync_allows_null_AnalyzedBy_for_back_compat()
+    {
+        var fetched = await _sut.GetByIdAsync((await _sut.AddAsync(MakeRun())).Id);
+
+        fetched.Should().NotBeNull();
+        fetched!.AnalyzedBy.Should().BeNull();
     }
 }

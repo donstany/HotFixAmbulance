@@ -24,6 +24,11 @@ builder.Services.AddHotFixGitInsights(builder.Configuration);
 builder.Services.AddHotFixPersistence(builder.Configuration);
 builder.Services.AddSingleton<IAnalysisStrategy, HeuristicAnalyzer>();
 
+// Group enrichment fills the two AI columns. The deterministic git-history enricher is the default
+// (and the fallback); Milestone 2's LLM toggle is wired in a later step.
+builder.Services.AddScoped<GitFixHintEnricher>();
+builder.Services.AddScoped<IGroupEnricher>(sp => sp.GetRequiredService<GitFixHintEnricher>());
+
 builder.Services.AddOptions<TriageOptions>()
     .Bind(builder.Configuration.GetSection(TriageOptions.SectionName))
     .ValidateDataAnnotations();
@@ -199,7 +204,8 @@ static TriageResult Rehydrate(TriageRun run)
         toUtc,
         run.TotalLogs,
         IsTruncated: false,
-        groups);
+        groups,
+        run.AnalyzedBy);
 }
 
 static TriageRunHeader ToHeader(TriageResult r)
@@ -208,7 +214,7 @@ static TriageRunHeader ToHeader(TriageResult r)
     return new TriageRunHeader(
         r.Id, r.ApiName, r.RequestedAtUtc, r.Lookback,
         r.FromUtc, r.ToUtc, r.TotalLogs, r.IsTruncated,
-        summary.TotalGroups, summary);
+        summary.TotalGroups, summary, r.AnalyzedBy);
 }
 
 // Exposed for WebApplicationFactory in integration tests.
