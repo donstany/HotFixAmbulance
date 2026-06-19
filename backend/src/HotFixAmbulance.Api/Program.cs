@@ -133,6 +133,45 @@ app.MapGet("/api/triage/runs/{id:guid}", async (
     return run is null ? Results.NotFound() : Results.Ok(Rehydrate(run));
 });
 
+app.MapGet("/api/triage/runs/{id:guid}/groups", async (
+    Guid id,
+    [FromQuery] int? page,
+    [FromQuery] int? pageSize,
+    [FromQuery] string? sort,
+    [FromQuery] string? dir,
+    ITriageRunRepository repo,
+    CancellationToken ct) =>
+{
+    var p = page ?? 1;
+    var ps = pageSize ?? 25;
+
+    if (p < 1)
+    {
+        return Results.Problem(detail: "page must be >= 1.", statusCode: StatusCodes.Status400BadRequest);
+    }
+    if (!GroupPager.AllowedPageSizes.Contains(ps))
+    {
+        return Results.Problem(
+            detail: $"pageSize must be one of {string.Join(", ", GroupPager.AllowedPageSizes)}.",
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+    if (!GroupPager.TryParseSort(sort, out var sortKey))
+    {
+        return Results.Problem(detail: "Unknown sort key.", statusCode: StatusCodes.Status400BadRequest);
+    }
+    if (!GroupPager.TryParseDir(dir, out var dirVal))
+    {
+        return Results.Problem(detail: "dir must be 'asc' or 'desc'.", statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    var run = await repo.GetByIdAsync(id, ct);
+    if (run is null) return Results.NotFound();
+
+    var all = JsonSerializer.Deserialize<List<ErrorGroup>>(run.ErrorGroupsJson) ?? [];
+    var paged = GroupPager.Paginate(all, p, ps, sortKey, dirVal);
+    return Results.Ok(paged);
+});
+
 app.MapGet("/api/triage/{apiName}/history", async (
     string apiName,
     [FromQuery] int? take,

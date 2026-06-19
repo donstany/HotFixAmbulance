@@ -195,6 +195,76 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         doc.RootElement.GetProperty("lookback").GetString().Should().Be("00:15:00");
     }
 
+    [Fact]
+    public async Task GET_groups_returns_first_page_with_metadata()
+    {
+        using var client = _factory.CreateClient();
+        var post = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
+        post.EnsureSuccessStatusCode();
+        var id = JsonDocument.Parse(await post.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+        var res = await client.GetAsync(new Uri($"/api/triage/runs/{id}/groups", UriKind.Relative));
+
+        res.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        var root = doc.RootElement;
+        root.GetProperty("page").GetInt32().Should().Be(1);
+        root.GetProperty("pageSize").GetInt32().Should().Be(25);
+        root.GetProperty("totalItems").GetInt32().Should().Be(1);
+        root.GetProperty("totalPages").GetInt32().Should().Be(1);
+        root.GetProperty("items").GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GET_groups_with_invalid_pageSize_returns_400()
+    {
+        using var client = _factory.CreateClient();
+        var post = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
+        post.EnsureSuccessStatusCode();
+        var id = JsonDocument.Parse(await post.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+        var res = await client.GetAsync(new Uri($"/api/triage/runs/{id}/groups?pageSize=7", UriKind.Relative));
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GET_groups_with_unknown_sort_returns_400()
+    {
+        using var client = _factory.CreateClient();
+        var post = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
+        post.EnsureSuccessStatusCode();
+        var id = JsonDocument.Parse(await post.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+        var res = await client.GetAsync(new Uri($"/api/triage/runs/{id}/groups?sort=bogus", UriKind.Relative));
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GET_groups_out_of_range_page_returns_empty_items()
+    {
+        using var client = _factory.CreateClient();
+        var post = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
+        post.EnsureSuccessStatusCode();
+        var id = JsonDocument.Parse(await post.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+        var res = await client.GetAsync(new Uri($"/api/triage/runs/{id}/groups?page=5", UriKind.Relative));
+
+        res.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        doc.RootElement.GetProperty("items").GetArrayLength().Should().Be(0);
+        doc.RootElement.GetProperty("totalItems").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GET_groups_for_unknown_run_returns_404()
+    {
+        using var client = _factory.CreateClient();
+        var res = await client.GetAsync(new Uri($"/api/triage/runs/{Guid.NewGuid()}/groups", UriKind.Relative));
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
     private sealed record TriagePayload(Guid Id, string ApiName, int TotalLogs, IReadOnlyList<object> Groups);
 
     public sealed class HfaFactory : WebApplicationFactory<Program>
