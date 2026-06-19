@@ -3,8 +3,9 @@ using HotFixAmbulance.Core;
 namespace HotFixAmbulance.Analysis;
 
 /// <summary>
-/// Pluggable analysis strategy. Today only <see cref="HeuristicAnalyzer"/> is wired up;
-/// <see cref="LlmAnalysisStrategy"/> is reserved for a future Phase.
+/// Pluggable analysis strategy responsible for grouping and ranking logs. <see cref="HeuristicAnalyzer"/>
+/// is the implementation; LLM involvement lives in the enrichment layer (the AI columns), not here, so
+/// grouping/ranking stay deterministic.
 /// </summary>
 public interface IAnalysisStrategy
 {

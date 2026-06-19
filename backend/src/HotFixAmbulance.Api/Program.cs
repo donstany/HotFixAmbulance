@@ -24,10 +24,8 @@ builder.Services.AddHotFixGitInsights(builder.Configuration);
 builder.Services.AddHotFixPersistence(builder.Configuration);
 builder.Services.AddSingleton<IAnalysisStrategy, HeuristicAnalyzer>();
 
-// Group enrichment fills the two AI columns. The deterministic git-history enricher is the default
-// (and the fallback); Milestone 2's LLM toggle is wired in a later step.
-builder.Services.AddScoped<GitFixHintEnricher>();
-builder.Services.AddScoped<IGroupEnricher>(sp => sp.GetRequiredService<GitFixHintEnricher>());
+// Group enrichment fills the two AI columns; the active strategy is chosen from Analysis:Strategy.
+builder.Services.AddHotFixGroupEnrichment(builder.Configuration);
 
 builder.Services.AddOptions<TriageOptions>()
     .Bind(builder.Configuration.GetSection(TriageOptions.SectionName))
