@@ -6,6 +6,7 @@
     <ProjectReference Include="..\HotFixAmbulance.Analysis\HotFixAmbulance.Analysis.csproj" />
     <ProjectReference Include="..\HotFixAmbulance.GitInsights\HotFixAmbulance.GitInsights.csproj" />
     <ProjectReference Include="..\HotFixAmbulance.Persistence\HotFixAmbulance.Persistence.csproj" />
+    <ProjectReference Include="..\HotFixAmbulance.Llm\HotFixAmbulance.Llm.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

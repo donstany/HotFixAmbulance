@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\HotFixAmbulance.Elastic\HotFixAmbulance.Elastic.csproj" />
     <ProjectReference Include="..\..\src\HotFixAmbulance.GitInsights\HotFixAmbulance.GitInsights.csproj" />
     <ProjectReference Include="..\..\src\HotFixAmbulance.Persistence\HotFixAmbulance.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\HotFixAmbulance.Llm\HotFixAmbulance.Llm.csproj" />
   </ItemGroup>
 
 </Project>
