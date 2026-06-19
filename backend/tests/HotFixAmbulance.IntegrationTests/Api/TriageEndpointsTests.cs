@@ -37,13 +37,22 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         var response = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
         response.EnsureSuccessStatusCode();
 
-        var payload = await response.Content.ReadFromJsonAsync<TriagePayload>();
+        var payload = await response.Content.ReadFromJsonAsync<TriageHeaderPayload>();
         payload.Should().NotBeNull();
         payload!.ApiName.Should().Be("checkout-api");
         payload.TotalLogs.Should().Be(1);
-        payload.Groups.Should().HaveCount(1);
+        payload.TotalGroups.Should().Be(1);
+        payload.Summary.TotalOccurrences.Should().Be(1);
 
-        // Latest endpoint should now return the same run.
+        // The header carries no inline groups; they come from the paged endpoint.
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        doc.RootElement.TryGetProperty("groups", out _).Should().BeFalse();
+
+        var groups = await client.GetAsync(new Uri($"/api/triage/runs/{payload.Id}/groups", UriKind.Relative));
+        groups.EnsureSuccessStatusCode();
+        JsonDocument.Parse(await groups.Content.ReadAsStringAsync())
+            .RootElement.GetProperty("items").GetArrayLength().Should().Be(1);
+
         var latest = await client.GetAsync(new Uri("/api/triage/checkout-api/latest", UriKind.Relative));
         latest.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -53,15 +62,18 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
     {
         using var client = _factory.CreateClient();
 
-        var response = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
-        response.EnsureSuccessStatusCode();
+        var post = await client.PostAsync(new Uri("/api/triage/checkout-api?lookbackHours=24", UriKind.Relative), content: null);
+        post.EnsureSuccessStatusCode();
+        var id = JsonDocument.Parse(await post.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
 
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-        var groups = doc.RootElement.GetProperty("groups");
-        groups.GetArrayLength().Should().BeGreaterThan(0);
+        var res = await client.GetAsync(new Uri($"/api/triage/runs/{id}/groups", UriKind.Relative));
+        res.EnsureSuccessStatusCode();
 
-        var howToFix = groups[0].GetProperty("howToFix").GetString();
+        using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+        var items = doc.RootElement.GetProperty("items");
+        items.GetArrayLength().Should().BeGreaterThan(0);
+
+        var howToFix = items[0].GetProperty("howToFix").GetString();
         howToFix.Should().NotBeNullOrWhiteSpace();
         howToFix!.Should().Contain("Where to fix", because: "recommendations must explicitly tell developers where to apply the change");
     }
@@ -265,7 +277,8 @@ public sealed class TriageEndpointsTests : IClassFixture<TriageEndpointsTests.Hf
         res.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private sealed record TriagePayload(Guid Id, string ApiName, int TotalLogs, IReadOnlyList<object> Groups);
+    private sealed record TriageHeaderPayload(Guid Id, string ApiName, int TotalLogs, int TotalGroups, SummaryPayload Summary);
+    private sealed record SummaryPayload(int TotalGroups, int TotalOccurrences);
 
     public sealed class HfaFactory : WebApplicationFactory<Program>
     {

@@ -112,7 +112,7 @@ app.MapPost("/api/triage/{apiName}", async (
     }
 
     var result = await service.RunAsync(apiName, window, ct);
-    return Results.Ok(result);
+    return Results.Ok(ToHeader(result));
 });
 
 app.MapGet("/api/triage/{apiName}/latest", async (
@@ -121,7 +121,7 @@ app.MapGet("/api/triage/{apiName}/latest", async (
     CancellationToken ct) =>
 {
     var run = await repo.GetLatestAsync(apiName, ct);
-    return run is null ? Results.NotFound() : Results.Ok(Rehydrate(run));
+    return run is null ? Results.NotFound() : Results.Ok(ToHeader(Rehydrate(run)));
 });
 
 app.MapGet("/api/triage/runs/{id:guid}", async (
@@ -130,7 +130,7 @@ app.MapGet("/api/triage/runs/{id:guid}", async (
     CancellationToken ct) =>
 {
     var run = await repo.GetByIdAsync(id, ct);
-    return run is null ? Results.NotFound() : Results.Ok(Rehydrate(run));
+    return run is null ? Results.NotFound() : Results.Ok(ToHeader(Rehydrate(run)));
 });
 
 app.MapGet("/api/triage/runs/{id:guid}/groups", async (
@@ -200,6 +200,15 @@ static TriageResult Rehydrate(TriageRun run)
         run.TotalLogs,
         IsTruncated: false,
         groups);
+}
+
+static TriageRunHeader ToHeader(TriageResult r)
+{
+    var summary = GroupPager.Summarize(r.Groups);
+    return new TriageRunHeader(
+        r.Id, r.ApiName, r.RequestedAtUtc, r.Lookback,
+        r.FromUtc, r.ToUtc, r.TotalLogs, r.IsTruncated,
+        summary.TotalGroups, summary);
 }
 
 // Exposed for WebApplicationFactory in integration tests.
