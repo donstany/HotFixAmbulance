@@ -3,8 +3,8 @@ import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
+  type OnChangeFn,
   type SortingState,
 } from '@tanstack/react-table';
 import {
@@ -28,6 +28,7 @@ import { severityRank } from '../utils/severity';
 import { SeverityBadge } from './SeverityBadge';
 import { ColumnSettingsModal } from './ColumnSettingsModal';
 import { ExpandableCell } from './ExpandableCell';
+import { Pagination } from './Pagination';
 
 const columnHelper = createColumnHelper<ErrorGroup>();
 
@@ -111,8 +112,29 @@ const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
  * Severity column is sorted by numeric rank so Fatal > Error > Warning.
  * Columns can be toggled via settings modal.
  */
-export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[]; analysisDateUtc: string }) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'severity', desc: true }]);
+export function TriageTable({
+  groups,
+  analysisDateUtc,
+  page,
+  pageSize,
+  totalItems,
+  totalPages,
+  sorting,
+  onSortingChange,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  groups: ErrorGroup[];
+  analysisDateUtc: string;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}) {
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : DEFAULT_VISIBLE_COLUMNS;
@@ -135,9 +157,11 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
       columnHelper.display({
         id: 'analysisIdentifier',
         header: () => <ColumnHeader columnId="analysisIdentifier">ID</ColumnHeader>,
+        enableSorting: false,
         cell: (info) => {
           const visibleIndex = info.table.getRowModel().rows.findIndex((row) => row.id === info.row.id);
-          return `${visibleIndex + 1}-${formatAnalysisDate(analysisDateUtc)}`;
+          const globalIndex = (page - 1) * pageSize + visibleIndex;
+          return `${globalIndex + 1}-${formatAnalysisDate(analysisDateUtc)}`;
         },
       }),
       ...(visibleColumns.severity
@@ -202,6 +226,7 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
         ? [
             columnHelper.accessor('message', {
               header: () => <ColumnHeader columnId="message">Message</ColumnHeader>,
+              enableSorting: false,
               cell: (i) => <ExpandableCell value={i.getValue()} title="Message" />,
             }),
           ]
@@ -218,6 +243,7 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
         ? [
             columnHelper.accessor('serviceVersion', {
               header: () => <ColumnHeader columnId="serviceVersion">Version</ColumnHeader>,
+              enableSorting: false,
               cell: (i) => i.getValue() ?? '—',
             }),
           ]
@@ -233,6 +259,7 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
         ? [
             columnHelper.accessor('suggestion', {
               header: () => <ColumnHeader columnId="suggestion">Suggestion for Error</ColumnHeader>,
+              enableSorting: false,
               cell: (i) => (
                 <ExpandableCell
                   dataTestId="suggestion"
@@ -248,6 +275,7 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
         ? [
             columnHelper.accessor('howToFix', {
               header: () => <ColumnHeader columnId="howToFix">How to fix</ColumnHeader>,
+              enableSorting: false,
               cell: (i) => (
                 <ExpandableCell
                   dataTestId="howtofix"
@@ -261,16 +289,18 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
           ]
         : []),
     ],
-    [analysisDateUtc, visibleColumns],
+    [analysisDateUtc, visibleColumns, page, pageSize],
   );
 
   const table = useReactTable({
     data: groups,
     columns,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange,
+    manualSorting: true,
+    manualPagination: true,
+    rowCount: totalItems,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   return (
@@ -330,6 +360,14 @@ export function TriageTable({ groups, analysisDateUtc }: { groups: ErrorGroup[];
         </tbody>
         </table>
       </div>
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+      />
     </>
   );
 }

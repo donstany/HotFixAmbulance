@@ -1,4 +1,10 @@
-import type { TimeRangeSelection, TriageResult } from './types';
+import type {
+  ErrorGroup,
+  GroupsPageRequest,
+  PagedResult,
+  TimeRangeSelection,
+  TriageRunHeader,
+} from './types';
 
 const DEFAULT_BASE = '';
 
@@ -8,20 +14,20 @@ function baseUrl(): string {
   return fromEnv?.trim() || DEFAULT_BASE;
 }
 
-export async function fetchTriageById(id: string, signal?: AbortSignal): Promise<TriageResult> {
+export async function fetchTriageById(id: string, signal?: AbortSignal): Promise<TriageRunHeader> {
   const res = await fetch(`${baseUrl()}/api/triage/runs/${encodeURIComponent(id)}`, { signal });
   if (!res.ok) {
     throw new Error(`GET /api/triage/runs/${id} failed: ${res.status}`);
   }
-  return (await res.json()) as TriageResult;
+  return (await res.json()) as TriageRunHeader;
 }
 
-export async function fetchLatestTriage(apiName: string, signal?: AbortSignal): Promise<TriageResult> {
+export async function fetchLatestTriage(apiName: string, signal?: AbortSignal): Promise<TriageRunHeader> {
   const res = await fetch(`${baseUrl()}/api/triage/${encodeURIComponent(apiName)}/latest`, { signal });
   if (!res.ok) {
     throw new Error(`GET /api/triage/${apiName}/latest failed: ${res.status}`);
   }
-  return (await res.json()) as TriageResult;
+  return (await res.json()) as TriageRunHeader;
 }
 
 export async function fetchApiNames(signal?: AbortSignal): Promise<string[]> {
@@ -34,13 +40,13 @@ export async function fetchApiNames(signal?: AbortSignal): Promise<string[]> {
 
 /**
  * POSTs to /api/triage/{apiName} with either a relative (`lookbackHours`) or absolute
- * (`fromUtc`/`toUtc`) window. Returns the newly created TriageResult.
+ * (`fromUtc`/`toUtc`) window. Returns the newly created TriageRunHeader.
  */
 export async function runTriage(
   apiName: string,
   range: TimeRangeSelection,
   signal?: AbortSignal,
-): Promise<TriageResult> {
+): Promise<TriageRunHeader> {
   const params = new URLSearchParams();
   if (range.kind === 'lookback') {
     params.set('lookbackHours', String(range.hours));
@@ -54,5 +60,27 @@ export async function runTriage(
     const body = await res.text().catch(() => '');
     throw new Error(`POST /api/triage/${apiName} failed: ${res.status} ${body}`);
   }
-  return (await res.json()) as TriageResult;
+  return (await res.json()) as TriageRunHeader;
+}
+
+/** Fetches one sorted page of a run's error groups. */
+export async function fetchGroupsPage(
+  runId: string,
+  req: GroupsPageRequest,
+  signal?: AbortSignal,
+): Promise<PagedResult<ErrorGroup>> {
+  const params = new URLSearchParams({
+    page: String(req.page),
+    pageSize: String(req.pageSize),
+    sort: req.sort,
+    dir: req.dir,
+  });
+  const res = await fetch(
+    `${baseUrl()}/api/triage/runs/${encodeURIComponent(runId)}/groups?${params.toString()}`,
+    { signal },
+  );
+  if (!res.ok) {
+    throw new Error(`GET /api/triage/runs/${runId}/groups failed: ${res.status}`);
+  }
+  return (await res.json()) as PagedResult<ErrorGroup>;
 }
