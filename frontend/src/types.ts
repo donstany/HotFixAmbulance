@@ -22,20 +22,57 @@ export interface ErrorGroup {
   howToFix: string | null;
 }
 
-/** Mirrors backend `HotFixAmbulance.Api.TriageResult`. */
-export interface TriageResult {
+/** Mirrors backend `HotFixAmbulance.Api.PagedResult<T>`. */
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+/** Mirrors backend `HotFixAmbulance.Api.TriageSummary`. */
+export interface TriageSummary {
+  totalGroups: number;
+  totalOccurrences: number;
+  fatal: number;
+  error: number;
+  warning: number;
+  withSuggestions: number;
+  withFixes: number;
+}
+
+/** Mirrors backend `HotFixAmbulance.Api.TriageRunHeader` (a run WITHOUT its groups). */
+export interface TriageRunHeader {
   id: string;
   apiName: string;
   requestedAtUtc: string;
   lookback: string;
-  /** Inclusive start of the analysis window (UTC ISO-8601). */
   fromUtc: string;
-  /** Inclusive end of the analysis window (UTC ISO-8601). */
   toUtc: string;
-  /** True when Elastic returned the MaxDocuments cap (results may be incomplete). */
   isTruncated: boolean;
   totalLogs: number;
-  groups: ErrorGroup[];
+  totalGroups: number;
+  summary: TriageSummary;
+}
+
+/** Sort keys accepted by GET /api/triage/runs/{id}/groups. */
+export type GroupSort =
+  | 'severity'
+  | 'count'
+  | 'firstSeen'
+  | 'lastSeen'
+  | 'endpoint'
+  | 'exceptionType'
+  | 'correlations';
+
+export type SortDir = 'asc' | 'desc';
+
+export interface GroupsPageRequest {
+  page: number;
+  pageSize: number;
+  sort: GroupSort;
+  dir: SortDir;
 }
 
 /**

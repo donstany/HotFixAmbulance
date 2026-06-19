@@ -12,11 +12,27 @@ vi.mock('./api', () => ({
     toUtc: '2026-06-18T09:30:00Z',
     isTruncated: false,
     totalLogs: 12,
-    groups: [],
+    totalGroups: 0,
+    summary: {
+      totalGroups: 0,
+      totalOccurrences: 0,
+      fatal: 0,
+      error: 0,
+      warning: 0,
+      withSuggestions: 0,
+      withFixes: 0,
+    },
   }),
   fetchTriageById: vi.fn(),
   fetchApiNames: vi.fn().mockResolvedValue(['demo-api', 'checkout-api']),
   runTriage: vi.fn(),
+  fetchGroupsPage: vi.fn().mockResolvedValue({
+    items: [],
+    page: 1,
+    pageSize: 25,
+    totalItems: 0,
+    totalPages: 0,
+  }),
 }));
 
 describe('<App />', () => {

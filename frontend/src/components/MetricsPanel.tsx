@@ -1,21 +1,20 @@
 import { AlertTriangle, Lightbulb, Wrench } from 'lucide-react';
-import type { ErrorGroup } from '../types';
+import type { TriageSummary } from '../types';
 
 interface MetricsPanelProps {
-  errorGroups: ErrorGroup[];
+  summary: TriageSummary;
 }
 
-export function MetricsPanel({ errorGroups }: MetricsPanelProps) {
-  // Calculate metrics from error groups
-  const totalErrors = errorGroups.reduce((sum, eg) => sum + eg.count, 0);
-  const withSuggestions = errorGroups.filter(eg => eg.suggestion).length;
-  const withFixes = errorGroups.filter(eg => eg.howToFix).length;
+export function MetricsPanel({ summary }: MetricsPanelProps) {
+  const totalErrors = summary.totalOccurrences;
+  const withSuggestions = summary.withSuggestions;
+  const withFixes = summary.withFixes;
 
   const metrics = [
     {
       id: 'total-errors',
       label: 'Total Errors Detected',
-      value: totalErrors.toLocaleString(),
+      value: totalErrors.toLocaleString('en-US'),
       icon: AlertTriangle,
       color: 'from-rose-50 to-pink-50',
       iconColor: 'text-rose-600',

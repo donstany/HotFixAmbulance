@@ -4,9 +4,9 @@ import { AlertTriangle, CalendarRange, Play, RotateCcw, Sparkles } from 'lucide-
 import { fetchApiNames, fetchLatestTriage, fetchTriageById, runTriage } from './api';
 import { AnimatedAmbulanceIcon } from './components/AnimatedAmbulanceIcon';
 import { TimeRangePicker } from './components/TimeRangePicker';
-import { TriageTable } from './components/TriageTable';
+import { TriageGroupsPanel } from './components/TriageGroupsPanel';
 import { MetricsPanel } from './components/MetricsPanel';
-import type { TimeRangeSelection, TriageResult } from './types';
+import type { TimeRangeSelection, TriageRunHeader } from './types';
 
 const client = new QueryClient({
   defaultOptions: { queries: { retry: 0, refetchOnWindowFocus: false } },
@@ -152,14 +152,14 @@ function TriageView() {
     queryFn: ({ signal }) => fetchApiNames(signal),
   });
 
-  const query = useQuery<TriageResult>({
+  const query = useQuery<TriageRunHeader>({
     queryKey: ['triage', analysisId ?? api ?? ''],
     enabled: Boolean(analysisId || api),
     queryFn: ({ signal }) =>
       analysisId ? fetchTriageById(analysisId, signal) : fetchLatestTriage(api ?? '', signal),
   });
 
-  const runMutation = useMutation<TriageResult, Error, { apiName: string; range: TimeRangeSelection }>({
+  const runMutation = useMutation<TriageRunHeader, Error, { apiName: string; range: TimeRangeSelection }>({
     mutationFn: ({ apiName, range }) => runTriage(apiName, range),
     onSuccess: result => {
       // Navigate the URL to the freshly created run and refetch.
@@ -232,7 +232,7 @@ function TriageView() {
                   )}
                 </div>
                 <p className="text-sm text-slate-600">
-                  {r.totalLogs} log(s) in {r.groups.length} group(s) · run {new Date(r.requestedAtUtc).toLocaleString()}
+                  {r.totalLogs} log(s) in {r.totalGroups} group(s) · run {new Date(r.requestedAtUtc).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -262,8 +262,8 @@ function TriageView() {
               <p className="text-xs text-slate-400">analysis id {r.id}</p>
             </div>
           </header>
-          <MetricsPanel errorGroups={r.groups} />
-          <TriageTable groups={r.groups} analysisDateUtc={r.requestedAtUtc} />
+          <MetricsPanel summary={r.summary} />
+          <TriageGroupsPanel runId={r.id} analysisDateUtc={r.requestedAtUtc} />
         </>
       )}
     </div>
