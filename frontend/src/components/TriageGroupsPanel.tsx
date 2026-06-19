@@ -9,6 +9,7 @@ const DEFAULT_PAGE_SIZE = 25;
 const DEFAULT_SORTING: SortingState = [{ id: 'severity', desc: true }];
 
 // TanStack column id → backend sort key. Columns absent here are not server-sortable.
+// Keep in sync with the columns that DON'T set `enableSorting: false` in TriageTable.
 const SORT_KEY_BY_COLUMN: Record<string, GroupSort> = {
   severity: 'severity',
   count: 'count',

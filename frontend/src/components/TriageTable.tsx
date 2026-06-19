@@ -24,7 +24,6 @@ import {
   Info,
 } from 'lucide-react';
 import type { ErrorGroup } from '../types';
-import { severityRank } from '../utils/severity';
 import { SeverityBadge } from './SeverityBadge';
 import { ColumnSettingsModal } from './ColumnSettingsModal';
 import { ExpandableCell } from './ExpandableCell';
@@ -159,8 +158,7 @@ export function TriageTable({
         header: () => <ColumnHeader columnId="analysisIdentifier">ID</ColumnHeader>,
         enableSorting: false,
         cell: (info) => {
-          const visibleIndex = info.table.getRowModel().rows.findIndex((row) => row.id === info.row.id);
-          const globalIndex = (page - 1) * pageSize + visibleIndex;
+          const globalIndex = (page - 1) * pageSize + info.row.index;
           return `${globalIndex + 1}-${formatAnalysisDate(analysisDateUtc)}`;
         },
       }),
@@ -169,7 +167,6 @@ export function TriageTable({
             columnHelper.accessor('severity', {
               header: () => <ColumnHeader columnId="severity">Severity</ColumnHeader>,
               cell: (info) => <SeverityBadge severity={info.getValue()} />,
-              sortingFn: (a, b) => severityRank(a.original.severity) - severityRank(b.original.severity),
             }),
           ]
         : []),
