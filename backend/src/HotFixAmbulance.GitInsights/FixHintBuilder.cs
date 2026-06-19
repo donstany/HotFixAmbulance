@@ -17,7 +17,7 @@ namespace HotFixAmbulance.GitInsights;
 /// because it is the strongest evidence (the actual code path that threw). Otherwise the builder
 /// falls back to keyword search over commit subject + body + paths.
 /// </summary>
-public sealed class FixHintBuilder
+public sealed class FixHintBuilder : IFixHintSource
 {
     private static readonly (string Pattern, string Canonical)[] MessageTokens =
     {
