@@ -10,6 +10,12 @@ describe('pageList', () => {
   it('inserts ellipses around the current page in long ranges', () => {
     expect(pageList(6, 20)).toEqual([1, 'ellipsis', 5, 6, 7, 'ellipsis', 20]);
   });
+  it('widens the window near the start so adjacent pages stay visible', () => {
+    expect(pageList(1, 20)).toEqual([1, 2, 3, 4, 'ellipsis', 20]);
+  });
+  it('widens the window near the end so adjacent pages stay visible', () => {
+    expect(pageList(20, 20)).toEqual([1, 'ellipsis', 17, 18, 19, 20]);
+  });
 });
 
 describe('<Pagination />', () => {
