@@ -1,6 +1,10 @@
 # Screenshots
 
-Captured by `scripts/demo.ps1` (Phase 8.3). At minimum the exam requires:
+> The current, captioned working-system evidence lives in [../evidence/](../evidence/)
+> (`HotFixAmbulance-Exam-Submission.pdf` and `working-system-evidence.pdf`, with the source
+> PNGs under `../evidence/shots/`). This folder is kept for backward compatibility.
 
-1. Terminal showing `/hot-fix-ambulance demo-api` output.
-2. Browser showing the 12-column triage table.
+At minimum the exam requires two screenshots proving the system works:
+
+1. The browser showing the **13-column triage table** with the **🤖 Qwen badge** on the AI columns.
+2. Terminal / API evidence that a run was analysed by the LLM (`analyzedBy = "Llm"`), the Qwen container healthy, and the model pulled.
