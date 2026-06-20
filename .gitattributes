@@ -1,0 +1,34 @@
+# Normalize line endings: LF in the repository AND in every working tree,
+# regardless of each developer's core.autocrlf setting. This keeps `dotnet format`
+# (end_of_line = lf) and the pre-commit gate consistent on Windows, macOS, Linux and CI.
+* text=auto eol=lf
+
+# Explicit text types (kept LF)
+*.cs        text eol=lf
+*.csproj    text eol=lf
+*.sln       text eol=lf
+*.props     text eol=lf
+*.targets   text eol=lf
+*.json      text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.md        text eol=lf
+*.ps1       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.editorconfig text eol=lf
+
+# Binary assets — never normalize or diff as text
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.dll   binary
+*.exe   binary
+*.snk   binary
+*.db    binary
