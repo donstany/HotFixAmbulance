@@ -27,6 +27,7 @@ import type { ErrorGroup } from '../types';
 import { SeverityBadge } from './SeverityBadge';
 import { ColumnSettingsModal } from './ColumnSettingsModal';
 import { ExpandableCell } from './ExpandableCell';
+import { OllamaBadge } from './OllamaBadge';
 import { Pagination } from './Pagination';
 
 const columnHelper = createColumnHelper<ErrorGroup>();
@@ -258,12 +259,15 @@ export function TriageTable({
               header: () => <ColumnHeader columnId="suggestion">Suggestion for Error</ColumnHeader>,
               enableSorting: false,
               cell: (i) => (
-                <ExpandableCell
-                  dataTestId="suggestion"
-                  value={i.getValue()}
-                  title="Suggestion for Error"
-                  className="px-3 py-2 rounded bg-sky-50 text-slate-700 hover:bg-sky-100 transition-colors"
-                />
+                <div>
+                  {i.row.original.analyzedBy === 'Llm' && <OllamaBadge />}
+                  <ExpandableCell
+                    dataTestId="suggestion"
+                    value={i.getValue()}
+                    title="Suggestion for Error"
+                    className="px-3 py-2 rounded bg-sky-50 text-slate-700 hover:bg-sky-100 transition-colors"
+                  />
+                </div>
               ),
             }),
           ]
@@ -274,13 +278,16 @@ export function TriageTable({
               header: () => <ColumnHeader columnId="howToFix">How to fix</ColumnHeader>,
               enableSorting: false,
               cell: (i) => (
-                <ExpandableCell
-                  dataTestId="howtofix"
-                  value={i.getValue()}
-                  title="How to fix"
-                  variant="mono"
-                  className="px-3 py-2 rounded bg-emerald-50 text-slate-700 hover:bg-emerald-100 transition-colors"
-                />
+                <div>
+                  {i.row.original.analyzedBy === 'Llm' && <OllamaBadge />}
+                  <ExpandableCell
+                    dataTestId="howtofix"
+                    value={i.getValue()}
+                    title="How to fix"
+                    variant="mono"
+                    className="px-3 py-2 rounded bg-emerald-50 text-slate-700 hover:bg-emerald-100 transition-colors"
+                  />
+                </div>
               ),
             }),
           ]

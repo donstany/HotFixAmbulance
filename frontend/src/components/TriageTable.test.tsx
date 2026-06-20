@@ -21,6 +21,7 @@ const SAMPLE: ErrorGroup[] = [
     stackLine: null,
     suggestion: 'OOM under load',
     howToFix: 'beef456 (2026-06-14) — tune GC settings',
+    analyzedBy: null,
   },
   {
     severity: 'Warning',
@@ -38,8 +39,13 @@ const SAMPLE: ErrorGroup[] = [
     stackLine: 88,
     suggestion: 'Upstream timeout',
     howToFix: 'abcd123 (2026-06-15) — bump HttpClient timeout',
+    analyzedBy: null,
   },
 ];
+
+function groupWith(overrides: Partial<ErrorGroup>): ErrorGroup {
+  return { ...SAMPLE[0], ...overrides };
+}
 
 function renderTable(overrides: Partial<React.ComponentProps<typeof TriageTable>> = {}) {
   const props: React.ComponentProps<typeof TriageTable> = {
@@ -96,5 +102,20 @@ describe('<TriageTable />', () => {
   it('renders the pagination footer', () => {
     renderTable({ totalItems: 60, totalPages: 3 });
     expect(screen.getByRole('navigation', { name: /pagination/i })).toBeInTheDocument();
+  });
+
+  it('renders the Ollama badge on both AI columns when analyzedBy is Llm', () => {
+    renderTable({ groups: [groupWith({ analyzedBy: 'Llm' })] });
+    expect(screen.getAllByTestId('ollama-badge')).toHaveLength(2);
+  });
+
+  it('does not render the Ollama badge when analyzedBy is Heuristic', () => {
+    renderTable({ groups: [groupWith({ analyzedBy: 'Heuristic' })] });
+    expect(screen.queryByTestId('ollama-badge')).not.toBeInTheDocument();
+  });
+
+  it('does not render the Ollama badge when analyzedBy is null', () => {
+    renderTable({ groups: [groupWith({ analyzedBy: null })] });
+    expect(screen.queryByTestId('ollama-badge')).not.toBeInTheDocument();
   });
 });

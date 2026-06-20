@@ -20,6 +20,8 @@ export interface ErrorGroup {
   suggestion: string | null;
   /** Renders in the UI's "How to fix" column. HOW to remediate it. */
   howToFix: string | null;
+  /** Which strategy wrote the AI columns: "Llm", "Heuristic", or null for legacy runs. */
+  analyzedBy: string | null;
 }
 
 /** Mirrors backend `HotFixAmbulance.Api.PagedResult<T>`. */

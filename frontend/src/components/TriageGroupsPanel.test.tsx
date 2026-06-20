@@ -23,6 +23,7 @@ const ONE: ErrorGroup = {
   stackLine: null,
   suggestion: null,
   howToFix: null,
+  analyzedBy: null,
 };
 
 function page(items: ErrorGroup[], totalItems: number, p = 1): PagedResult<ErrorGroup> {
