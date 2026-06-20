@@ -281,5 +281,5 @@ docker compose -f infra/elasticsearch/docker-compose.yml down -v
 
 ---
 
-Repo: <https://github.com/myPOStech/mps-banking-hot-fix-ambulance>
+Repo: <https://github.com/donstany/HotFixAmbulance>
 HEAD when this guide was written: `2a98807` (Phase 12.G — configurable analysis time range, shared SQLite schema shim)

@@ -66,4 +66,4 @@ Every change follows the 6-step cycle in [.claude/skills/tdd-cycle/SKILL.md](.cl
 
 ## Repository
 
-Corporate: <https://github.com/myPOStech/mps-banking-hot-fix-ambulance> (default branch `main`).
+GitHub: <https://github.com/donstany/HotFixAmbulance> (default branch `main`).

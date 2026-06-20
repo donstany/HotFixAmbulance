@@ -3,7 +3,7 @@
 
 **Author:** Stanislav Stanev
 **AI tool used:** Claude Code — Anthropic’s agentic CLI — running the **Claude Opus 4.8** model (1M-context)
-**Repository:** https://github.com/myPOStech/mps-banking-hot-fix-ambulance
+**Repository:** https://github.com/donstany/HotFixAmbulance
 **Working-system evidence:** `docs/evidence/working-system-evidence.pdf`
 
 ---
@@ -219,7 +219,7 @@ powershell -File scripts/demo.ps1 -WithElastic -KeepRunning
 
 ## 6. Repository
 
-**GitHub:** https://github.com/myPOStech/mps-banking-hot-fix-ambulance
+**GitHub:** https://github.com/donstany/HotFixAmbulance
 (Feature work on branch `integration-llm`.)
 
 ---
@@ -269,7 +269,7 @@ triage on Qwen, starts the API + UI, asserts the run was analysed by the LLM, an
 ### 8.2 One-time setup
 ```powershell
 # 1) Clone and switch to the feature branch
-git clone https://github.com/myPOStech/mps-banking-hot-fix-ambulance.git
+git clone https://github.com/donstany/HotFixAmbulance.git
 cd mps-banking-hot-fix-ambulance
 git checkout integration-llm
 

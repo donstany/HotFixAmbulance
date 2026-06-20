@@ -2,7 +2,7 @@
 
 **Author:** Stanislav Stanev
 **Course:** Softuni — AI-Assisted Development
-**Repository:** [github.com/myPOStech/mps-banking-hot-fix-ambulance](https://github.com/myPOStech/mps-banking-hot-fix-ambulance)
+**Repository:** [github.com/donstany/HotFixAmbulance](https://github.com/donstany/HotFixAmbulance)
 **Date:** 2026-06-16
 
 ---
@@ -272,7 +272,7 @@ Save as PNG under `docs/screenshots/` and embed in the Google Doc.
 
 ## 6. Repository
 
-- **Code:** [github.com/myPOStech/mps-banking-hot-fix-ambulance](https://github.com/myPOStech/mps-banking-hot-fix-ambulance)
+- **Code:** [github.com/donstany/HotFixAmbulance](https://github.com/donstany/HotFixAmbulance)
 - **Plan:** [plan.md](../plan.md)
 - **Dev-log:** [docs/dev-log.md](dev-log.md) — one row per TDD cycle.
 - **AI customizations:** `.claude/agents/`, `.claude/skills/`, `.claude/hooks/`, `.claude/commands/`.
