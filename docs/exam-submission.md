@@ -221,3 +221,126 @@ powershell -File scripts/demo.ps1 -WithElastic -KeepRunning
 
 **GitHub:** https://github.com/myPOStech/mps-banking-hot-fix-ambulance
 (Feature work on branch `integration-llm`.)
+
+---
+
+## 7. Author’s Notes
+
+This is **my own idea project**. Beyond the exam, I intend to present it to **myPOS management** as a
+**working prototype** for everyday use by the **.NET teams** — a practical, privacy-respecting way to shorten
+incident triage in a fintech environment where production data must stay in-house.
+
+**Why it is worth adopting:**
+- **Faster incident response (lower MTTR).** On-call engineers open a ranked, *explained* error list instead of
+  scrolling raw Kibana logs — the “what” and the “how to fix” are already written for each distinct problem.
+- **Lower skill barrier.** Junior engineers get plain-English root-cause hints and remediation steps **grounded in
+  the team’s own Git history** (blame + related commits), not generic advice.
+- **Consistent, repeatable triage.** Every incident is analysed the same way, with the same evidence, so handovers
+  and post-mortems start from a common baseline.
+- **Privacy & compliance by design.** The model runs **locally in Docker (CPU-only)** — no logs, stack traces or
+  source context leave myPOS infrastructure. Critical for banking/PCI contexts where cloud LLMs are a non-starter.
+- **No per-token cost.** Uses a small open model (`qwen2.5:3b`) locally; there are no cloud-API usage fees.
+- **Fits the existing stack.** .NET, Serilog, Elasticsearch and Git are tools the teams already run; adoption is
+  additive, not a migration.
+- **Safe to roll out.** The LLM is optional and **degrades gracefully** — if the model is down, triage still works
+  via the deterministic Git heuristic, so it can be enabled per-team without risk.
+- **Extensible.** Pluggable analysis strategy (heuristic ↔ LLM), pluggable model and per-API configuration mean it
+  can grow from a prototype to a shared internal service.
+
+**Proposed next step at myPOS:** pilot it with one .NET team on a non-critical service for two weeks, measure the
+change in triage time and engineer feedback, then decide on a shared, GPU-backed internal deployment.
+
+---
+
+## 8. How to Reproduce the Full End-to-End Test
+
+This section lets a reviewer reproduce the **entire experimental setup** shown in §5 from a clean checkout. One
+PowerShell command brings up the whole stack (Qwen + Elasticsearch + SQL Server), generates sample errors, runs the
+triage on Qwen, starts the API + UI, asserts the run was analysed by the LLM, and opens the browser on it.
+
+### 8.1 Prerequisites
+- **Windows 10/11 + PowerShell 5.1** (the automation uses Windows/PowerShell features).
+- **Docker Desktop** installed and **running** (Linux containers).
+- **.NET 10 SDK**, **Node.js 18+ & npm**, **Git**.
+- **Disk/network:** the first run downloads ~**6 GB** of images + models (Ollama image, `qwen2.5:3b` ≈ 2 GB,
+  Elasticsearch, SQL Server). Subsequent runs reuse the cached volumes and are much faster.
+- A free **`11434`** (Qwen), **`5283`** (API), **`5173`** (frontend), **`9200`** (Elasticsearch), **`14333`** (SQL Server).
+
+### 8.2 One-time setup
+```powershell
+# 1) Clone and switch to the feature branch
+git clone https://github.com/myPOStech/mps-banking-hot-fix-ambulance.git
+cd mps-banking-hot-fix-ambulance
+git checkout integration-llm
+
+# 2) Restore tooling and install the pre-commit hook (.NET restore + npm install)
+powershell -File scripts/bootstrap.ps1
+
+# 3) Make sure Docker Desktop is running
+docker version
+```
+
+### 8.3 Run the full end-to-end demo
+```powershell
+powershell -File scripts/demo.ps1 -WithElastic -KeepRunning
+```
+This single command performs, in order:
+1. **Starts the Qwen runtime** (`infra/qwen`, Docker, CPU-only) and runs its bootstrap, which **pulls `qwen2.5:3b`**
+   if absent and verifies it with a JSON `/api/chat` probe. *(First run downloads ~2 GB — be patient.)*
+2. Sets `Analysis:Strategy=Llm` + the `Llm` endpoint/model for every child process.
+3. **Starts SQL Server and Elasticsearch** (Docker) and waits for health.
+4. **Builds and starts `demo-api`**, hammers its endpoints to **generate realistic error traffic**, then reshapes
+   the logs into Elasticsearch via the ingest pipeline.
+5. **Runs the CLI triage** on Qwen, then **builds and starts the API (`:5283`) and the frontend (`:5173`)**.
+6. **Creates a triage run via the API** and **asserts** the result’s `analyzedBy` is `Llm`/`Mixed` — i.e. it
+   **fails loudly if Qwen was not actually used**.
+7. **Opens the browser** on the produced run, where every analysed group shows the **🤖 Qwen** badge.
+
+### 8.4 Expected console output (key markers)
+```text
+[demo] LLM strategy enabled: provider=Qwen model=qwen2.5:3b endpoint=http://localhost:11434
+[qwen-bootstrap] chat probe: ok
+[demo] Producing error traffic
+[es-bootstrap] Reindex: total=94 created=94 updated=0 failures=0
+[demo] Running CLI: hot-fix-ambulance demo-api --lookback 1h
+[demo] Starting HotFixAmbulance.Api on http://localhost:5283
+[demo] Creating the run via API: POST /api/triage/demo-api?lookbackHours=1
+[demo] API run id=<guid> analyzedBy=Llm groups=38
+[demo] Verified: this run was analyzed by Qwen (analyzedBy=Llm). The UI shows the Qwen badge.
+[demo] Opening UI: http://localhost:5173/?analysisId=<guid>&api=demo-api
+```
+
+### 8.5 What you should see
+The browser opens the triage table for `demo-api`. **Each group’s “Suggestion for Error” and “How to fix” cells
+carry a violet 🤖 Qwen badge** with model-generated text — exactly as in **Figure 1, Figure 2 and Figure 3** above.
+
+### 8.6 Verify the LLM directly (optional, independent proof)
+```powershell
+# The Qwen model is loaded in the container
+docker exec hfa-qwen ollama list                       # -> qwen2.5:3b ... 1.9 GB
+
+# Produce a run via the API and confirm it was analysed by the LLM
+curl.exe -s -X POST "http://localhost:5283/api/triage/demo-api?lookbackHours=1"
+#  -> JSON whose "analyzedBy" field is "Llm"
+
+# Watch the Qwen container saturate the CPU during inference
+docker stats hfa-qwen --no-stream                       # -> CPU ~1000%+ while a run is in flight
+```
+
+### 8.7 Troubleshooting
+- **`x509: certificate signed by unknown authority` on model pull (corporate networks).** `demo.ps1` already
+  handles this — it exports the host CA bundle (`infra/qwen/export-host-ca.ps1`) and starts the runtime with
+  `infra/qwen/docker-compose.corp.yml` so the container trusts an intercepting proxy. On a normal home network no
+  action is needed.
+- **`docker compose up failed`.** Docker Desktop is not running — start it and re-run.
+- **A port is busy.** Stop whatever holds `5283`/`5173`/`11434`, or close a previous demo run.
+- **Model pull is slow.** It is a one-time ~2 GB download; the demo waits for it. Re-runs skip it.
+- **Run without the LLM** (heuristic only, no Docker model): `powershell -File scripts/demo.ps1 -WithElastic -KeepRunning -SkipLlm`.
+
+### 8.8 Teardown
+```powershell
+docker compose -f infra/qwen/docker-compose.yml down            # keeps the model volume
+docker compose -f infra/elasticsearch/docker-compose.yml down
+docker compose -f infra/mssql/docker-compose.yml down
+# add `-v` to any of the above to also delete its data/model volume
+```
