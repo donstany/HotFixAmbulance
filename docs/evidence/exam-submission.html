@@ -1,0 +1,223 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>HotFixAmbulance — Exam Submission</title><style>
+@page { size: A4; margin: 16mm 14mm; }
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI", Arial, sans-serif; color: #1e293b; font-size: 11px; line-height: 1.55; margin: 0; }
+h1 { font-size: 22px; color: #0f172a; margin: 0 0 4px; }
+h2 { font-size: 15px; color: #4338ca; margin: 20px 0 7px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; page-break-after: avoid; }
+h3 { font-size: 12.5px; color: #1e3a8a; margin: 13px 0 4px; page-break-after: avoid; }
+p { margin: 6px 0; }
+ul { margin: 5px 0 8px 18px; padding: 0; }
+li { margin: 3px 0; }
+strong { color: #0f172a; }
+code { background: #eef2ff; color: #3730a3; border-radius: 4px; padding: 0 4px; font-family: "Cascadia Code", Consolas, monospace; font-size: 10px; }
+pre { background: #0f172a; color: #e2e8f0; border-radius: 7px; padding: 11px 13px; font-size: 9.5px; line-height: 1.5; overflow-x: auto; white-space: pre-wrap; word-break: break-word; page-break-inside: avoid; font-family: "Cascadia Code", Consolas, monospace; }
+pre code { background: none; color: inherit; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10px; page-break-inside: avoid; }
+th, td { border: 1px solid #cbd5e1; padding: 5px 7px; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; color: #0f172a; font-weight: 600; }
+tr:nth-child(even) td { background: #f8fafc; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 14px 0; }
+blockquote { margin: 8px 0; padding: 6px 12px; background: #f8fafc; border-left: 3px solid #818cf8; color: #475569; font-style: italic; }
+a { color: #2563eb; word-break: break-all; }
+</style></head><body>
+<h1>AI-Assisted Development — Exam Submission</h1>
+<h2>HotFixAmbulance — AI-Powered Production-Error Triage for .NET Web APIs</h2>
+<p><strong>Author:</strong> Stanislav Stanev</p>
+<p><strong>AI tools used:</strong> Claude Code (primary)</p>
+<p><strong>Repository:</strong> <a href="https://github.com/myPOStech/mps-banking-hot-fix-ambulance">https://github.com/myPOStech/mps-banking-hot-fix-ambulance</a></p>
+<p><strong>Working-system evidence:</strong> <code>docs/evidence/working-system-evidence.pdf</code></p>
+<hr>
+<h2>1. Project Overview</h2>
+<h3>The idea</h3>
+<p>On-call engineers waste the first, most expensive minutes of an incident doing the same manual ritual:</p>
+<p>open Kibana, filter the last few hours of errors, eyeball the stack traces, guess the root cause, and</p>
+<p>go hunting through Git for the offending change. <strong>HotFixAmbulance</strong> automates that ritual. It is a</p>
+<p>triage tool that, for a chosen .NET Web API and time window, pulls the recent error logs, groups them</p>
+<p>into distinct problems, and — for each problem — uses a <strong>local Qwen LLM</strong> to write two human-readable</p>
+<p>columns: <strong>“Suggestion for Error”</strong> (what the error means) and <strong>“How to fix”</strong> (a concrete remediation),</p>
+<p>grounded in the service’s own Git history. The result is a ranked, explained, actionable error table in</p>
+<p>a web UI, plus a CLI for terminal/CI use.</p>
+<h3>System requirements</h3>
+<p><strong>Functional</strong></p>
+<ul>
+<li>Fetch Fatal/Error/Warning logs for a named API over a relative (last <em>N</em> h) or absolute time window from <strong>Elasticsearch</strong>.</li>
+<li>Group logs by exception fingerprint (exception type + normalized message + endpoint) and rank by severity, count, recency.</li>
+<li>For each group, produce an AI <strong>Suggestion</strong> and <strong>How-to-fix</strong>, using a <strong>locally hosted Qwen model</strong> and grounding the answer in Git blame + related commits.</li>
+<li>Persist every run; expose it through a REST API and a paginated React table; provide a CLI that triages and prints JSON/table output.</li>
+<li>The UI must make it <strong>visible and verifiable</strong> that a group was analysed by the LLM (a per-group <strong>🤖 Qwen</strong> badge).</li>
+</ul>
+<p><strong>Non-functional</strong></p>
+<ul>
+<li><strong>Graceful degradation:</strong> the LLM is optional — if the model is unreachable, the system silently falls back to a deterministic Git-history heuristic and never fails a run.</li>
+<li><strong>Local &amp; private:</strong> the model runs on the developer’s machine in Docker (CPU-only), no data leaves the host.</li>
+<li><strong>Reproducible:</strong> one command (<code>scripts/demo.ps1</code>) brings up the whole stack (Qwen, Elasticsearch, SQL Server), generates sample errors, runs triage, and opens the UI.</li>
+</ul>
+<h3>Tech stack</h3>
+<p>.NET 9 / C# 13 (backend, CLI) · ASP.NET Core Minimal APIs · Entity Framework Core + SQLite · Elasticsearch 8 ·</p>
+<p>LibGit2Sharp · React 18 + TypeScript + Vite + TanStack Table + Tailwind · Ollama-runtime serving <strong>Qwen 2.5 (3B)</strong> ·</p>
+<p>Docker Compose · PowerShell automation · xUnit + FluentAssertions + NSubstitute (backend) · Vitest + Testing Library (frontend).</p>
+<hr>
+<h2>2. System Architecture — Modules</h2>
+<p>The system was decomposed (with AI assistance) into focused technological modules, each a separate .NET</p>
+<p>project or front-end/infra unit with a single responsibility and a clear seam (interface) to its neighbours.</p>
+<pre>Elasticsearch ─▶ [1] Ingestion ─▶ [2] Analysis/Grouping ─▶ [3] AI Enrichment (Qwen)
+                                                              │   grounded by
+                                                              ▼
+                                                       [4] Git Insights
+                                                              │
+                          [5] Persistence (SQLite) ◀──────────┘
+                                  │
+                 [6] REST API ──▶ [7] React UI  (🤖 Qwen badge)
+                                  └▶ [8] CLI
+            [9] Infrastructure (Docker: Qwen / Elastic / MSSQL) + demo orchestration
+            [10] Testing &amp; Quality (TDD, pre-commit gates) — cross-cutting</pre>
+<table><thead><tr><th>#</th><th>Module</th><th>Project / Location</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td>1</td><td>Log Ingestion</td><td><code>HotFixAmbulance.Elastic</code></td><td>Query Elasticsearch, normalise documents to <code>LogEntry</code>.</td></tr>
+<tr><td>2</td><td>Analysis &amp; Grouping</td><td><code>HotFixAmbulance.Analysis</code></td><td>Group by fingerprint, rank, baseline suggestions.</td></tr>
+<tr><td>3</td><td>AI Enrichment (Qwen)</td><td><code>HotFixAmbulance.Llm</code> + <code>LlmGroupEnricher</code></td><td>Per-group LLM call; JSON contract; fallback.</td></tr>
+<tr><td>4</td><td>Git Insights</td><td><code>HotFixAmbulance.GitInsights</code></td><td>Blame + related commits to ground the model.</td></tr>
+<tr><td>5</td><td>Persistence</td><td><code>HotFixAmbulance.Persistence</code></td><td>Store runs + per-group <code>AnalyzedBy</code> in SQLite.</td></tr>
+<tr><td>6</td><td>REST API</td><td><code>HotFixAmbulance.Api</code></td><td>Endpoints for triage, history, paged groups.</td></tr>
+<tr><td>7</td><td>Frontend UI</td><td><code>frontend/</code></td><td>Paginated table; renders the 🤖 Qwen badge.</td></tr>
+<tr><td>8</td><td>CLI</td><td><code>HotFixAmbulance.Cli</code></td><td>One-shot triage for terminal / CI.</td></tr>
+<tr><td>9</td><td>Infrastructure</td><td><code>infra/</code>, <code>scripts/</code></td><td>Dockerised Qwen/Elastic/MSSQL + demo runner.</td></tr>
+<tr><td>10</td><td>Testing &amp; Quality</td><td><code>tests/</code>, <code>.claude/hooks</code></td><td>TDD, unit/integration tests, pre-commit gates.</td></tr>
+</tbody></table>
+<hr>
+<h2>3. Development Process per Module</h2>
+<blockquote>For every module: <strong>Approach &amp; reasoning</strong>, <strong>Step-by-step workflow</strong>, <strong>Testing strategy</strong>, <strong>AI tool choice</strong>, and representative prompts.</blockquote>
+<h3>3.1 Log Ingestion (Elasticsearch)</h3>
+<p><strong>Approach &amp; reasoning.</strong> Keep Elasticsearch behind an <code>IElasticLogSource</code> seam so the pipeline depends on a</p>
+<p>domain <code>LogEntry</code>, not on the ES client. A <code>SerilogDocumentMapper</code> translates the stored document shape into</p>
+<p><code>LogEntry</code>; an <code>ElasticLogIngestor</code> validates inputs, applies the severity filter and a <code>MaxDocuments</code> cap.</p>
+<p><strong>Step-by-step workflow.</strong> Asked the AI to (1) define <code>LogEntry</code>/<code>TimeWindow</code>/<code>LogQuery</code> value types, (2) write</p>
+<p>the ingestor with relative/absolute window support and an <code>IsTruncated</code> flag, (3) write the ES client adapter.</p>
+<p><strong>Testing strategy.</strong> Unit tests with a substituted <code>IElasticLogSource</code> cover the window math, severity filter</p>
+<p>and truncation; an Elasticsearch ingest pipeline (<code>infra/elasticsearch</code>) is bootstrapped for the live demo.</p>
+<p><strong>AI tool choice.</strong> Claude Code — it could hold the whole ingestion contract in context and generate the mapper + tests together.</p>
+<p><strong>Prompts:</strong> <em>“Design a LogEntry domain type and an ingestor that filters Fatal/Error/Warning over a UTC window with a max-documents cap.”</em> · <em>“Write unit tests for the truncation flag using a fake log source.”</em></p>
+<h3>3.2 Error Analysis &amp; Grouping</h3>
+<p><strong>Approach &amp; reasoning.</strong> Grouping must be <strong>deterministic</strong> (no LLM), so it lives behind <code>IAnalysisStrategy</code>.</p>
+<p><code>HeuristicAnalyzer</code> groups by <em>(exception type, normalized message, endpoint)</em>, ranks by severity → count →</p>
+<p>last-seen, and fills baseline AI columns from rule matches.</p>
+<p><strong>Step-by-step workflow.</strong> (1) <code>MessageNormalizer</code> to collapse volatile IDs; (2) <code>ErrorGroup.FromLogs</code> aggregation;</p>
+<p>(3) <code>RankBySeverity</code>; (4) a <code>SuggestionBuilder</code> + <code>DefaultRules</code> baseline.</p>
+<p><strong>Testing strategy.</strong> Pure unit tests assert grouping keys, ranking order and correlation-id counting — fast and exhaustive because the layer is side-effect-free.</p>
+<p><strong>AI tool choice.</strong> Claude Code — strong at generating table-driven ranking tests and edge cases.</p>
+<p><strong>Prompts:</strong> <em>“Group logs by a stable fingerprint and rank Fatal&gt;Error&gt;Warning, then count desc, then last-seen desc.”</em> · <em>“Add a normalizer that replaces GUIDs/numbers so the same error collapses into one group.”</em></p>
+<h3>3.3 AI Enrichment with Qwen (the centrepiece)</h3>
+<p><strong>Approach &amp; reasoning.</strong> The AI columns are owned by an <code>IGroupEnricher</code> seam so the strategy is swappable from</p>
+<p>config (<code>Analysis:Strategy</code>). <code>LlmGroupEnricher</code> builds a strict-JSON prompt (<code>{suggestion, howToFix}</code>) from the</p>
+<p>group + Git evidence, calls the model via <code>ILlmClient</code> (<code>OllamaLlmClient</code>, <code>temperature 0.2</code>, <code>format:"json"</code>),</p>
+<p>and on <strong>any</strong> failure (timeout, unreachable, bad JSON) degrades to the deterministic Git heuristic. A successful</p>
+<p>call tags the group <code>AnalyzedBy = "Llm"</code>; that single fact drives the UI badge.</p>
+<p><strong>Step-by-step workflow.</strong> (1) <code>LlmPromptBuilder</code> (system contract + fact dump); (2) <code>OllamaLlmClient</code> that never</p>
+<p>throws (returns <code>null</code> on failure); (3) <code>LlmGroupEnricher</code> with fallback; (4) propagate per-group <code>AnalyzedBy</code></p>
+<p>through <code>TriageService</code> → <code>ErrorGroup</code> → API → UI.</p>
+<p><strong>Testing strategy.</strong> Unit tests with a substituted <code>ILlmClient</code> assert: valid JSON → <code>Llm</code>; null/garbage → heuristic</p>
+<p>fallback; and that <code>TriageService</code> stamps each group with the enricher’s source.</p>
+<p><strong>AI tool choice.</strong> Claude Code — it implemented the fallback contract, the run-level <code>Mixed/Llm/Heuristic</code> aggregation, and the tests in one TDD loop.</p>
+<p><strong>Prompts:</strong> <em>“Add an LLM enricher that asks the model for {suggestion, howToFix} as JSON and falls back to the Git heuristic on any error — never throw.”</em> · <em>“Make sure every group records which strategy produced it, and surface a per-group marker in the UI proving Qwen was used.”</em></p>
+<h3>3.4 Git-History Grounding</h3>
+<p><strong>Approach &amp; reasoning.</strong> An LLM answer is only useful if grounded in the real code, so <code>FixHintBuilder</code></p>
+<p>(behind <code>IFixHintSource</code>) uses LibGit2Sharp to fetch the offending file’s blame + a code snippet and search</p>
+<p><code>origin/main</code> for related commits; this evidence is fed to both the heuristic and the Qwen prompt.</p>
+<p><strong>Step-by-step workflow.</strong> (1) <code>IGitRepoCache</code> to clone/pull per API; (2) <code>IGitHistoryReader</code> for blame + keyword</p>
+<p>commit search; (3) <code>FixHintBuilder</code> to assemble a compact evidence string.</p>
+<p><strong>Testing strategy.</strong> Unit tests substitute the repo cache/reader and assert the formatted hint contains the</p>
+<p>expected <code>file:line</code>, blame and commit SHAs.</p>
+<p><strong>AI tool choice.</strong> Claude Code — handled the LibGit2Sharp specifics and kept the evidence format testable.</p>
+<p><strong>Prompts:</strong> <em>“Given a stack file+line, return blame + a code snippet from origin/main and the related commits.”</em></p>
+<h3>3.5 Persistence &amp; REST API</h3>
+<p><strong>Approach &amp; reasoning.</strong> Runs are stored as a row with the groups serialised to JSON (SQLite), keeping the schema</p>
+<p>trivial and migration-free; the API is ASP.NET Core Minimal APIs with server-side paging/sorting (<code>GroupPager</code>).</p>
+<p><strong>Step-by-step workflow.</strong> (1) <code>HotFixDbContext</code> + <code>TriageRun</code> (incl. nullable <code>AnalyzedBy</code> for back-compat);</p>
+<p>(2) repository; (3) endpoints: run triage, latest, by-id, paged groups, history.</p>
+<p><strong>Testing strategy.</strong> Integration tests with <code>WebApplicationFactory</code> hit the real endpoints (in-memory/SQLite),</p>
+<p>asserting status codes, paging bounds and the <code>analyzedBy</code> field round-trips.</p>
+<p><strong>AI tool choice.</strong> Claude Code — generated endpoints + integration tests and kept DTOs in sync with the frontend types.</p>
+<p><strong>Prompts:</strong> <em>“Expose paginated groups with sort/dir validation and an allowed page-size list, plus a run-by-id endpoint.”</em></p>
+<h3>3.6 Frontend UI + the Qwen badge</h3>
+<p><strong>Approach &amp; reasoning.</strong> A TanStack-Table grid with toggleable columns; the AI columns render a small violet</p>
+<p><strong>🤖 Qwen</strong> badge <strong>iff</strong> <code>analyzedBy === 'Llm'</code> — the visible proof the model was used.</p>
+<p><strong>Step-by-step workflow.</strong> (1) typed API client + <code>ErrorGroup</code> type incl. <code>analyzedBy</code>; (2) <code>QwenBadge</code> component;</p>
+<p>(3) render it in the Suggestion and How-to-fix cells; (4) metrics panel (“AI Insights Generated”).</p>
+<p><strong>Testing strategy.</strong> Vitest + Testing Library: badge appears for <code>Llm</code>, is absent for <code>Heuristic</code>/<code>null</code> — written</p>
+<p><strong>before</strong> the component (TDD red→green).</p>
+<p><strong>AI tool choice.</strong> Claude Code — wrote the failing tests first, then the component, matching the repo’s TDD rule.</p>
+<p><strong>Prompts:</strong> <em>“Render a Qwen badge on the AI columns only when analyzedBy is 'Llm'; add Vitest tests for all three cases first.”</em></p>
+<h3>3.7 Infrastructure &amp; DevOps</h3>
+<p><strong>Approach &amp; reasoning.</strong> Mirror the existing <code>infra/&lt;service&gt;</code> pattern: a CPU-only Qwen runtime in Docker Compose</p>
+<p>(<code>infra/qwen</code>), an idempotent <code>bootstrap.ps1</code> that pre-pulls <code>qwen2.5:3b</code>, and a <code>demo.ps1</code> that orchestrates the</p>
+<p>whole stack and <strong>asserts</strong> the produced run was analysed by the LLM before opening the UI.</p>
+<p><strong>Step-by-step workflow.</strong> (1) compose + healthcheck; (2) bootstrap (pull + chat probe); (3) corporate-CA injection</p>
+<p>(<code>export-host-ca.ps1</code> + <code>docker-compose.corp.yml</code>) for TLS-intercepting proxies; (4) wire <code>-WithLlm</code>/default LLM env into <code>demo.ps1</code>.</p>
+<p><strong>Testing strategy.</strong> Each script is verified live: compose <code>config</code>, container health, <code>/api/tags</code>, model present,</p>
+<p>idempotent re-run, and an end-to-end demo asserting <code>analyzedBy ∈ {Llm, Mixed}</code>.</p>
+<p><strong>AI tool choice.</strong> Claude Code — it ran the Docker/PowerShell commands, diagnosed failures from their output, and iterated.</p>
+<p><strong>Prompts:</strong> <em>“Make Qwen part of the infrastructure in Docker like Elasticsearch, and guarantee the model is present before the app starts.”</em> · <em>“The container can’t verify TLS through our proxy — inject the corporate CA.”</em></p>
+<h3>3.8 Testing &amp; Quality (cross-cutting)</h3>
+<p><strong>Approach &amp; reasoning.</strong> A mandatory TDD cycle (failing test first) and a <strong>pre-commit hook</strong> that blocks any commit</p>
+<p>unless <code>dotnet test</code>, <code>dotnet format</code>, frontend tests and lint all pass — so <code>main</code>/integration stays green.</p>
+<p><strong>Step-by-step workflow.</strong> Write the failing test → minimal implementation → run → commit (hook gates it).</p>
+<p><strong>Testing strategy.</strong> 160 backend unit tests + 18 integration tests + 34 frontend tests, all green at each commit.</p>
+<p><strong>AI tool choice.</strong> Claude Code — drove the red→green→commit loop and respected the project’s skills/hooks.</p>
+<p><strong>Prompts:</strong> <em>“Add the failing test for AnalyzedBy first, watch it fail, then implement and run the suite.”</em></p>
+<hr>
+<h2>4. Challenges &amp; Tool Comparison</h2>
+<h3>Biggest challenges</h3>
+<ul>
+<li><strong>Corporate TLS interception.</strong> The Docker container could not <code>ollama pull</code> the model — `x509: certificate signed</li>
+</ul>
+<p>  by unknown authority` — because the corporate proxy MITM-terminates TLS and the container lacked the corporate root</p>
+<p>  CA. <strong>Solved</strong> by exporting the host CA bundle (<code>export-host-ca.ps1</code>) and mounting it via a <code>docker-compose.corp.yml</code></p>
+<p>  overlay with <code>SSL_CERT_FILE</code>. This was the single hardest, most environment-specific problem.</p>
+<ul>
+<li><strong>A latent DI bug surfaced by the new feature.</strong> The CLI had never been wired to the <code>IGroupEnricher</code> seam added in a</li>
+</ul>
+<p>  prior phase, so it crashed with <em>“Unable to resolve service for type IGroupEnricher.”</em> Found it by running the CLI;</p>
+<p>  fixed by registering <code>AddHotFixGroupEnrichment</code> — which also enabled the CLI to use Qwen.</p>
+<ul>
+<li><strong>CPU inference latency.</strong> One LLM call per group, sequential, on CPU (~10 s each) makes a 38-group run take minutes;</li>
+</ul>
+<p>  mitigated by warming the model and raising the API client timeout. A real trade-off of running a private model locally.</p>
+<ul>
+<li><strong>Tooling papercuts.</strong> PowerShell 5.1 mis-parsing a UTF-8 script because of em-dash characters (replaced with ASCII);</li>
+</ul>
+<p>  Chrome headless needing absolute paths and an origin before <code>localStorage</code>; SQLite file-locks when a running API blocked</p>
+<p>  the build. Each was diagnosed from command output and fixed.</p>
+<h3>Which tool helped the most, and why</h3>
+<p><strong>Claude Code</strong> was the primary and most valuable tool. Beyond code generation it could <strong>run</strong> the project — execute</p>
+<p>Docker/PowerShell/dotnet, read the failures, and iterate — which is what actually solved the infrastructure problems</p>
+<p>(the CA injection, the DI crash, the parse bug). Its skills/sub-agents kept the work disciplined (plan → TDD → verify →</p>
+<p>commit with a passing pre-commit gate), and it could reason across the whole repo (backend + frontend + infra) to keep</p>
+<p>types, DTOs and the demo orchestration consistent end-to-end.</p>
+<h3>What I would improve next</h3>
+<ul>
+<li><strong>Batch / parallelise</strong> the per-group LLM calls (or stream) to cut run time; optionally cache by fingerprint.</li>
+<li>Add a <strong>GPU compose overlay</strong> for much faster inference where a GPU is available.</li>
+<li>Make the persisted strategy tag itself read <code>Qwen</code> (currently the internal tag stays the generic <code>Llm</code>, while the UI shows “Qwen”).</li>
+<li>Share one SQLite store between CLI and API so a CLI-produced run is viewable in the UI without a second pass.</li>
+<li>Add a small <strong>eval harness</strong> that scores the model’s suggestions against known root causes.</li>
+</ul>
+<hr>
+<h2>5. Working System Evidence</h2>
+<p>See <strong><code>docs/evidence/working-system-evidence.pdf</code></strong> (4 captioned figures). Highlights:</p>
+<ul>
+<li><strong>Figure 1 — Overview:</strong> a real run for <code>demo-api</code> — <strong>73 logs → 38 groups</strong>, with <strong>38 “AI Insights Generated”</strong> and <strong>38 “Fix Recommendations.”</strong></li>
+<li><strong>Figure 2 — Proof of Qwen:</strong> every AI cell shows the <strong>🤖 Qwen</strong> badge and genuine, context-specific model text</li>
+</ul>
+<p>  (e.g. <em>“…failed database save operation at line 311 in DemoDatabase.cs…”</em>, <em>“…invalid SQL object name 'Pricing.Records'…”</em>).</p>
+<ul>
+<li><strong>Figure 3 — Full table:</strong> all <strong>38 groups</strong> carry the badge (run-level <code>analyzedBy = "Llm"</code>).</li>
+<li><strong>Figure 4 — Terminal:</strong> <code>docker ps</code> (Qwen healthy on :11434), <code>ollama list</code> (<code>qwen2.5:3b</code>, 1.9 GB), API run</li>
+</ul>
+<p>  <code>analyzedBy = Llm</code> with <code>withSuggestions = 38</code> / <code>withFixes = 38</code>, and the container at <strong>1177 % CPU</strong> during inference.</p>
+<p>Reproduce locally:</p>
+<pre>powershell -File scripts/demo.ps1 -WithElastic -KeepRunning
+# then open the printed UI URL — every analysed group shows the 🤖 Qwen badge</pre>
+<hr>
+<h2>6. Repository</h2>
+<p><strong>GitHub:</strong> <a href="https://github.com/myPOStech/mps-banking-hot-fix-ambulance">https://github.com/myPOStech/mps-banking-hot-fix-ambulance</a></p>
+<p>(Feature work on branch <code>integration-llm</code>.)</p>
+</body></html>
