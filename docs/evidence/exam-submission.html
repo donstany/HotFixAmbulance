@@ -20,6 +20,9 @@ tr:nth-child(even) td { background: #f8fafc; }
 hr { border: none; border-top: 1px solid #e2e8f0; margin: 14px 0; }
 blockquote { margin: 8px 0; padding: 6px 12px; background: #f8fafc; border-left: 3px solid #818cf8; color: #475569; font-style: italic; }
 a { color: #2563eb; word-break: break-all; }
+.idea-box { background: #eafaf1; border: 1px solid #b7e4c7; border-radius: 12px; padding: 16px 26px; margin: 10px 0 18px; text-align: center; box-shadow: 0 1px 3px rgba(16,185,129,0.10); page-break-inside: avoid; }
+.idea-box h3 { color: #15803d; margin: 0 0 8px; text-align: center; }
+.idea-box p { text-align: center; margin: 0; color: #14532d; }
 .doc-fig { margin: 10px 0; page-break-inside: avoid; }
 .doc-fig img { width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; }
 .doc-fig figcaption { font-size: 10px; color: #334155; margin-top: 5px; text-align: justify; }
@@ -32,6 +35,7 @@ a { color: #2563eb; word-break: break-all; }
 <p><strong>Working-system evidence:</strong> <code>docs/evidence/working-system-evidence.pdf</code></p>
 <hr>
 <h2>1. Project Overview</h2>
+<div class="idea-box">
 <h3>The idea</h3>
 <p>On-call engineers waste the first, most expensive minutes of an incident doing the same manual ritual:</p>
 <p>open Kibana, filter the last few hours of errors, eyeball the stack traces, guess the root cause, and</p>
@@ -41,6 +45,7 @@ a { color: #2563eb; word-break: break-all; }
 <p>columns: <strong>“Suggestion for Error”</strong> (what the error means) and <strong>“How to fix”</strong> (a concrete remediation),</p>
 <p>grounded in the service’s own Git history. The result is a ranked, explained, actionable error table in</p>
 <p>a web UI, plus a CLI for terminal/CI use.</p>
+</div>
 <h3>System requirements</h3>
 <p><strong>Functional</strong></p>
 <ul>
