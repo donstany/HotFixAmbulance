@@ -294,7 +294,8 @@ This single command performs, in order:
 5. **Runs the CLI triage** on Qwen, then **builds and starts the API (`:5283`) and the frontend (`:5173`)**.
 6. **Creates a triage run via the API** and **asserts** the result’s `analyzedBy` is `Llm`/`Mixed` — i.e. it
    **fails loudly if Qwen was not actually used**.
-7. **Opens the browser** on the produced run, where every analysed group shows the **🤖 Qwen** badge.
+7. **Opens your default browser** on the produced run (see §8.5 for the link and what is shown) — every
+   analysed group shows the **🤖 Qwen** badge.
 
 ### 8.4 Expected console output (key markers)
 ```text
@@ -310,9 +311,28 @@ This single command performs, in order:
 [demo] Opening UI: http://localhost:5173/?analysisId=<guid>&api=demo-api
 ```
 
-### 8.5 What you should see
-The browser opens the triage table for `demo-api`. **Each group’s “Suggestion for Error” and “How to fix” cells
-carry a violet 🤖 Qwen badge** with model-generated text — exactly as in **Figure 1, Figure 2 and Figure 3** above.
+### 8.5 Open the result in the browser
+
+When the demo finishes it **automatically opens your default browser** on the produced run. The URL looks like:
+
+```text
+http://localhost:5173/?analysisId=<run-guid>&api=demo-api
+```
+
+The exact `<run-guid>` is printed in the console (see §8.4 — the `Opening UI:` line). While the API (`:5283`)
+and the frontend (`:5173`) stay running you can also open the result manually at any time:
+
+- **Latest run, no id needed:** open **http://localhost:5173/?api=demo-api** — the UI loads the most recent run for `demo-api`.
+- **A specific run:** paste the full URL using the `analysisId` printed in the console.
+
+**What you will see (Figure 5).** The triage dashboard for `demo-api`: a header with the run summary
+(**73 log(s) in 38 group(s)**), a metrics strip (**Total Errors Detected**, **AI Insights Generated**,
+**Fix Recommendations**), and the ranked error table. In the **“Suggestion for Error”** and **“How to fix”**
+columns, **every analysed group shows a violet 🤖 Qwen badge** above the model-written text — the visible proof
+that the Qwen LLM produced the analysis. The **Column Settings** button (top-right) toggles which columns are
+shown; the **Run analysis** button (top-right) re-runs the triage for the selected API and time range.
+
+![Figure 5 — The browser opened on the produced run: the demo-api triage dashboard. Every group's "Suggestion for Error" and "How to fix" cell shows a 🤖 Qwen badge above the model-generated text, proving the analysis came from the Qwen LLM.](shots/08-ui-opened.png)
 
 ### 8.6 Verify the LLM directly (optional, independent proof)
 ```powershell

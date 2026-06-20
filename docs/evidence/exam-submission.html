@@ -20,6 +20,9 @@ tr:nth-child(even) td { background: #f8fafc; }
 hr { border: none; border-top: 1px solid #e2e8f0; margin: 14px 0; }
 blockquote { margin: 8px 0; padding: 6px 12px; background: #f8fafc; border-left: 3px solid #818cf8; color: #475569; font-style: italic; }
 a { color: #2563eb; word-break: break-all; }
+.doc-fig { margin: 10px 0; page-break-inside: avoid; }
+.doc-fig img { width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; }
+.doc-fig figcaption { font-size: 10px; color: #334155; margin-top: 5px; text-align: justify; }
 </style></head><body>
 <h1>AI-Assisted Development — Exam Submission</h1>
 <h2>HotFixAmbulance — AI-Powered Production-Error Triage for .NET Web APIs</h2>
@@ -297,7 +300,8 @@ docker version</pre>
 <p>5. <strong>Runs the CLI triage</strong> on Qwen, then <strong>builds and starts the API (<code>:5283</code>) and the frontend (<code>:5173</code>)</strong>.</p>
 <p>6. <strong>Creates a triage run via the API</strong> and <strong>asserts</strong> the result’s <code>analyzedBy</code> is <code>Llm</code>/<code>Mixed</code> — i.e. it</p>
 <p>   <strong>fails loudly if Qwen was not actually used</strong>.</p>
-<p>7. <strong>Opens the browser</strong> on the produced run, where every analysed group shows the <strong>🤖 Qwen</strong> badge.</p>
+<p>7. <strong>Opens your default browser</strong> on the produced run (see §8.5 for the link and what is shown) — every</p>
+<p>   analysed group shows the <strong>🤖 Qwen</strong> badge.</p>
 <h3>8.4 Expected console output (key markers)</h3>
 <pre>[demo] LLM strategy enabled: provider=Qwen model=qwen2.5:3b endpoint=http://localhost:11434
 [qwen-bootstrap] chat probe: ok
@@ -309,9 +313,22 @@ docker version</pre>
 [demo] API run id=&lt;guid&gt; analyzedBy=Llm groups=38
 [demo] Verified: this run was analyzed by Qwen (analyzedBy=Llm). The UI shows the Qwen badge.
 [demo] Opening UI: http://localhost:5173/?analysisId=&lt;guid&gt;&amp;api=demo-api</pre>
-<h3>8.5 What you should see</h3>
-<p>The browser opens the triage table for <code>demo-api</code>. **Each group’s “Suggestion for Error” and “How to fix” cells</p>
-<p>carry a violet 🤖 Qwen badge<strong> with model-generated text — exactly as in </strong>Figure 1, Figure 2 and Figure 3** above.</p>
+<h3>8.5 Open the result in the browser</h3>
+<p>When the demo finishes it <strong>automatically opens your default browser</strong> on the produced run. The URL looks like:</p>
+<pre>http://localhost:5173/?analysisId=&lt;run-guid&gt;&amp;api=demo-api</pre>
+<p>The exact <code>&lt;run-guid&gt;</code> is printed in the console (see §8.4 — the <code>Opening UI:</code> line). While the API (<code>:5283</code>)</p>
+<p>and the frontend (<code>:5173</code>) stay running you can also open the result manually at any time:</p>
+<ul>
+<li><strong>Latest run, no id needed:</strong> open <strong>http://localhost:5173/?api=demo-api</strong> — the UI loads the most recent run for <code>demo-api</code>.</li>
+<li><strong>A specific run:</strong> paste the full URL using the <code>analysisId</code> printed in the console.</li>
+</ul>
+<p><strong>What you will see (Figure 5).</strong> The triage dashboard for <code>demo-api</code>: a header with the run summary</p>
+<p>(<strong>73 log(s) in 38 group(s)</strong>), a metrics strip (<strong>Total Errors Detected</strong>, <strong>AI Insights Generated</strong>,</p>
+<p><strong>Fix Recommendations</strong>), and the ranked error table. In the <strong>“Suggestion for Error”</strong> and <strong>“How to fix”</strong></p>
+<p>columns, <strong>every analysed group shows a violet 🤖 Qwen badge</strong> above the model-written text — the visible proof</p>
+<p>that the Qwen LLM produced the analysis. The <strong>Column Settings</strong> button (top-right) toggles which columns are</p>
+<p>shown; the <strong>Run analysis</strong> button (top-right) re-runs the triage for the selected API and time range.</p>
+<figure class="doc-fig"><img src="shots/08-ui-opened.png" alt="Figure 5 — The browser opened on the produced run: the demo-api triage dashboard. Every group's "Suggestion for Error" and "How to fix" cell shows a 🤖 Qwen badge above the model-generated text, proving the analysis came from the Qwen LLM."><figcaption>Figure 5 — The browser opened on the produced run: the demo-api triage dashboard. Every group's "Suggestion for Error" and "How to fix" cell shows a 🤖 Qwen badge above the model-generated text, proving the analysis came from the Qwen LLM.</figcaption></figure>
 <h3>8.6 Verify the LLM directly (optional, independent proof)</h3>
 <pre># The Qwen model is loaded in the container
 docker exec hfa-qwen ollama list                       # -&gt; qwen2.5:3b ... 1.9 GB
