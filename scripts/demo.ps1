@@ -1,8 +1,16 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-  End-to-end HotFixAmbulance demo. Starts demo-api, hammers its endpoints to produce errors,
-  then runs the CLI to triage them and prints the analysis id and React UI URL.
+  End-to-end HotFixAmbulance demo on Qwen. Starts the Dockerized Qwen runtime (model
+  pre-pulled), demo-api, the API (:5283) and frontend (:5173) wired to Analysis:Strategy=Llm,
+  produces a triage run through the API, asserts it was analyzed by the LLM, and opens the UI
+  where the Qwen badge is visible. Pass -SkipLlm for the old heuristic-only flow.
+
+.PARAMETER LlmModel
+  Qwen model tag pulled and used. Defaults to qwen2.5:3b.
+
+.PARAMETER SkipLlm
+  Escape hatch: skip Qwen and run the heuristic flow (no badge, no Docker LLM dependency).
 
 .DESCRIPTION
   Phase 8.2 of plan.md. By default the demo works without Elasticsearch -- the CLI just
@@ -55,6 +63,8 @@ param(
     [switch]$KeepRunning,
     [switch]$WithElastic,
     [string]$ElasticUri = 'http://localhost:9200',
+    [string]$LlmModel = 'qwen2.5:3b',
+    [switch]$SkipLlm,
     [bool]$WithMssql = $true,
     [string]$MssqlSaPassword = 'Your_strong_Password123!'
 )
@@ -67,6 +77,46 @@ function Write-Step($msg) { Write-Host "[demo] $msg" -ForegroundColor Cyan }
 function Test-PortFree([int]$port) {
     try { (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop) | Out-Null; return $false }
     catch { return $true }
+}
+function Wait-Http([string]$url, [int]$timeoutSec = 30) {
+    $deadline = (Get-Date).AddSeconds($timeoutSec)
+    do {
+        try { Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2 | Out-Null; return $true }
+        catch { Start-Sleep -Milliseconds 500 }
+    } while ((Get-Date) -lt $deadline)
+    return $false
+}
+
+if (-not $SkipLlm) {
+    Write-Step 'Ensuring Qwen runtime container is up (docker compose up -d)'
+    $qwenDir = Join-Path $repoRoot 'infra/qwen'
+    $qwenCompose = Join-Path $qwenDir 'docker-compose.yml'
+    $qwenCorpCompose = Join-Path $qwenDir 'docker-compose.corp.yml'
+    if (-not (Test-Path $qwenCompose)) { throw "compose file not found: $qwenCompose" }
+
+    # Corporate networks MITM-terminate TLS; export the host CA bundle so the container
+    # can verify the proxy and the model pull works. The bundle is git-ignored.
+    Write-Step 'Exporting host CA bundle for the container (corporate TLS interception)'
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $qwenDir 'export-host-ca.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'export-host-ca.ps1 failed' }
+
+    & docker compose -f $qwenCompose -f $qwenCorpCompose up -d
+    if ($LASTEXITCODE -ne 0) { throw 'qwen docker compose up failed (is Docker Desktop running?)' }
+
+    $qwenBootstrap = Join-Path $qwenDir 'bootstrap.ps1'
+    if (-not (Test-Path $qwenBootstrap)) { throw "bootstrap script missing: $qwenBootstrap" }
+    Write-Step "Bootstrapping Qwen (pull $LlmModel if absent - first run downloads ~2GB)"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $qwenBootstrap -Model $LlmModel
+    if ($LASTEXITCODE -ne 0) { throw "qwen bootstrap exited with $LASTEXITCODE" }
+
+    # Every child process (demo-api, API, CLI) inherits these - they honour HFA_*.
+    $env:HFA_Analysis__Strategy = 'Llm'
+    $env:HFA_Llm__Provider = 'Qwen'
+    $env:HFA_Llm__Endpoint = 'http://localhost:11434'
+    $env:HFA_Llm__Model = $LlmModel
+    Write-Step "LLM strategy enabled: provider=Qwen model=$LlmModel endpoint=http://localhost:11434"
+} else {
+    Write-Step 'LLM disabled (-SkipLlm): running the heuristic flow'
 }
 
 if ($WithMssql) {
@@ -215,6 +265,50 @@ try {
         $exit = $LASTEXITCODE
         Write-Step "CLI exited with $exit"
     }
+
+    # ---- Start the API (:5283) + frontend (:5173) and create the run the UI shows ----
+    if (-not (Test-PortFree 5283)) {
+        $owners = @(Get-NetTCPConnection -State Listen -LocalPort 5283 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+        Write-Step "Port 5283 is held by pid(s) $($owners -join ', ') -- stopping (likely leftover API)"
+        foreach ($pidToKill in $owners) { Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Milliseconds 800
+    }
+
+    Write-Step 'Building HotFixAmbulance.Api'
+    dotnet build backend/src/HotFixAmbulance.Api/HotFixAmbulance.Api.csproj --nologo --verbosity minimal | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'HotFixAmbulance.Api build failed' }
+
+    Write-Step 'Starting HotFixAmbulance.Api on http://localhost:5283'
+    $apiProcess = Start-Process -FilePath 'dotnet' `
+        -ArgumentList @('run', '--project', 'backend/src/HotFixAmbulance.Api', '--no-build', '--urls', 'http://localhost:5283') `
+        -PassThru -WindowStyle Hidden
+    if (-not (Wait-Http 'http://localhost:5283/health' 30)) { throw 'HotFixAmbulance.Api did not become healthy on :5283' }
+
+    if (Test-PortFree 5173) {
+        Write-Step 'Starting frontend dev server on http://localhost:5173 (npm run dev)'
+        $frontendProcess = Start-Process -FilePath 'npm' `
+            -ArgumentList @('--prefix', 'frontend', 'run', 'dev') `
+            -PassThru -WindowStyle Hidden
+        if (-not (Wait-Http 'http://localhost:5173' 40)) { Write-Warning 'frontend did not answer on :5173 yet — it may still be starting' }
+    } else {
+        Write-Step 'frontend already running on :5173'
+    }
+
+    Write-Step "Creating the run via API: POST /api/triage/$ApiName?lookbackHours=$LookbackHours"
+    # CPU inference is sequential, one call per error group, so allow generous headroom.
+    $header = Invoke-RestMethod -Method POST -Uri "http://localhost:5283/api/triage/$ApiName`?lookbackHours=$LookbackHours" -TimeoutSec 900
+    Write-Step ("API run id={0} analyzedBy={1} groups={2}" -f $header.id, $header.analyzedBy, $header.totalGroups)
+
+    if (-not $SkipLlm) {
+        if ($header.analyzedBy -notin @('Llm', 'Mixed')) {
+            throw "Demo guarantee failed: expected analyzedBy 'Llm'/'Mixed' but got '$($header.analyzedBy)'. Qwen was not used - check 'docker logs hfa-qwen' and that '$LlmModel' is pulled."
+        }
+        Write-Step "Verified: this run was analyzed by Qwen (analyzedBy=$($header.analyzedBy)). The UI shows the Qwen badge."
+    }
+
+    $uiUrl = "http://localhost:5173/?analysisId=$($header.id)&api=$ApiName"
+    Write-Step "Opening UI: $uiUrl"
+    Start-Process $uiUrl
 }
 finally {
     if (-not $KeepRunning -and $demoProcess -and -not $demoProcess.HasExited) {
@@ -223,5 +317,13 @@ finally {
     }
     elseif ($KeepRunning) {
         Write-Step "demo-api still running (PID $($demoProcess.Id)). Stop it with: Stop-Process -Id $($demoProcess.Id)"
+    }
+
+    # The API + frontend must stay up for the UI link to resolve — leave them running.
+    if ($apiProcess -and -not $apiProcess.HasExited) {
+        Write-Step "HotFixAmbulance.Api still running (PID $($apiProcess.Id)) on :5283. Stop it with: Stop-Process -Id $($apiProcess.Id)"
+    }
+    if ($frontendProcess -and -not $frontendProcess.HasExited) {
+        Write-Step "frontend dev server still running (PID $($frontendProcess.Id)) on :5173. Stop it with: Stop-Process -Id $($frontendProcess.Id)"
     }
 }
