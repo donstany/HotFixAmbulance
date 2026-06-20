@@ -46,18 +46,26 @@ Docker Compose · PowerShell automation · xUnit + FluentAssertions + NSubstitut
 The system was decomposed (with AI assistance) into focused technological modules, each a separate .NET
 project or front-end/infra unit with a single responsibility and a clear seam (interface) to its neighbours.
 
-```
-Elasticsearch ─▶ [1] Ingestion ─▶ [2] Analysis/Grouping ─▶ [3] AI Enrichment (Qwen)
-                                                              │   grounded by
-                                                              ▼
-                                                       [4] Git Insights
-                                                              │
-                          [5] Persistence (SQLite) ◀──────────┘
-                                  │
-                 [6] REST API ──▶ [7] React UI  (🤖 Qwen badge)
-                                  └▶ [8] CLI
-            [9] Infrastructure (Docker: Qwen / Elastic / MSSQL) + demo orchestration
-            [10] Testing & Quality (TDD, pre-commit gates) — cross-cutting
+```mermaid
+flowchart LR
+    CLI[HotFixAmbulance.Cli]      --> API
+    UI["React UI :5173\n🤖 Qwen badge"]  --> API
+
+    subgraph api["API Layer"]
+        API["HotFixAmbulance.Api\nTriageService"]
+    end
+
+    API --> Elastic[(Elasticsearch\n:9200)]
+    API --> Analyze["HeuristicAnalyzer\ngroup + rank"]
+
+    Analyze --> Enrich{IGroupEnricher\nAnalysis:Strategy}
+
+    Enrich -->|"Strategy = Llm"| Qwen[("Qwen 2.5 3B\nOllama runtime\n:11434 · Docker")]
+    Enrich -->|"fallback / default"| Git[("Git origin/main\nblame + commits")]
+
+    Qwen  --> DB
+    Git   --> DB
+    DB[(SQLite)] --> API
 ```
 
 | # | Module | Project / Location | Responsibility |
@@ -386,3 +394,12 @@ reached and a few representative commit ids.
 feature delivered end-to-end with proof and documentation (20 Jun). Each phase is a small, independently-tested
 commit, so any single step can be reviewed in isolation, and the green pre-commit gate on every commit means the
 `main`/integration branch was never left broken.
+
+---
+
+## 10. Submission Artefacts
+
+The full exam documentation is available at two locations in the public repository:
+
+- **PDF (formatted, with screenshots):** [docs/evidence/HotFixAmbulance-Exam-Submission.pdf](https://github.com/donstany/HotFixAmbulance/blob/main/docs/evidence/HotFixAmbulance-Exam-Submission.pdf)
+- **Markdown source:** [docs/exam-submission.md](https://github.com/donstany/HotFixAmbulance/blob/main/docs/exam-submission.md)
