@@ -1,0 +1,35 @@
+# Single-node CPU-only Qwen runtime for local HotFixAmbulance LLM-strategy demos.
+#
+# Qwen (qwen2.5:3b) is served by the Ollama runtime image, which exposes the
+# /api/chat endpoint HotFixAmbulance's OllamaLlmClient already speaks. Local
+# development only (http://localhost:11434). Do NOT expose to a network.
+#
+# Usage:
+#   docker compose -f infra/qwen/docker-compose.yml up -d
+#   docker compose -f infra/qwen/docker-compose.yml down            # keeps the model volume
+#   docker compose -f infra/qwen/docker-compose.yml down -v         # wipes the model volume
+#
+# The container starts with NO models. infra/qwen/bootstrap.ps1 pulls qwen2.5:3b
+# into the hfa-qwen-data volume.
+
+name: hfa-qwen
+
+services:
+  qwen:
+    image: ollama/ollama:latest
+    container_name: hfa-qwen
+    ports:
+      - "11434:11434"
+    volumes:
+      - hfa-qwen-data:/root/.ollama
+    healthcheck:
+      # `ollama list` exits non-zero until the runtime is accepting requests.
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+volumes:
+  hfa-qwen-data:
+    name: hfa-qwen-data
