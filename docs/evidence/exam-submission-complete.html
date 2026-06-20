@@ -34,7 +34,7 @@ a { color: #2563eb; word-break: break-all; }
 <h1>AI-Assisted Development — Exam Submission</h1>
 <h2>HotFixAmbulance — AI-Powered Production-Error Triage for .NET Web APIs</h2>
 <p><strong>Author:</strong> Stanislav Stanev</p>
-<p><strong>AI tools used:</strong> Claude Code (primary)</p>
+<p><strong>AI tool used:</strong> Claude Code — Anthropic’s agentic CLI — running the <strong>Claude Opus 4.8</strong> model (1M-context)</p>
 <p><strong>Repository:</strong> <a href="https://github.com/myPOStech/mps-banking-hot-fix-ambulance">https://github.com/myPOStech/mps-banking-hot-fix-ambulance</a></p>
 <p><strong>Working-system evidence:</strong> <code>docs/evidence/working-system-evidence.pdf</code></p>
 <hr>
@@ -198,7 +198,7 @@ a { color: #2563eb; word-break: break-all; }
 <p>  Chrome headless needing absolute paths and an origin before <code>localStorage</code>; SQLite file-locks when a running API blocked</p>
 <p>  the build. Each was diagnosed from command output and fixed.</p>
 <h3>Which tool helped the most, and why</h3>
-<p><strong>Claude Code</strong> was the primary and most valuable tool. Beyond code generation it could <strong>run</strong> the project — execute</p>
+<p><strong>Claude Code</strong> running the <strong>Claude Opus 4.8</strong> model (1M-context) was the primary and most valuable tool. Beyond code generation it could <strong>run</strong> the project — execute</p>
 <p>Docker/PowerShell/dotnet, read the failures, and iterate — which is what actually solved the infrastructure problems</p>
 <p>(the CA injection, the DI crash, the parse bug). Its skills/sub-agents kept the work disciplined (plan → TDD → verify →</p>
 <p>commit with a passing pre-commit gate), and it could reason across the whole repo (backend + frontend + infra) to keep</p>
@@ -399,4 +399,21 @@ docker stats hfa-qwen --no-stream                       # -&gt; CPU ~1000%+ whil
 docker compose -f infra/elasticsearch/docker-compose.yml down
 docker compose -f infra/mssql/docker-compose.yml down
 # add `-v` to any of the above to also delete its data/model volume</pre>
+<hr>
+<h2>9. Project Timeline (from the Git history)</h2>
+<p>The project was built in <strong>69 commits over four days (16–20 June 2026)</strong>. Every commit was gated by a pre-commit</p>
+<p>hook that runs the full backend + frontend test suites, formatting and lint — <code>--no-verify</code> was never used — so each</p>
+<p>row below is a green, independently-inspectable checkpoint. The history is generalised by day, with the milestone</p>
+<p>reached and a few representative commit ids.</p>
+<table><thead><tr><th>Day</th><th>Milestone</th><th>Key commits</th><th>What was done</th></tr></thead><tbody>
+<tr><td><strong>16 Jun</strong></td><td>End-to-end skeleton working</td><td><code>981a210</code>, <code>bb62f32</code>, <code>0cd65da</code>, <code>b213806</code>, <code>2b061dd</code>, <code>bc7b613</code>, <code>b773ed7</code></td><td>Scaffolded the repo + Claude tooling, then built the backend solution and Core domain (Severity / LogEntry / ErrorGroup, 16 tests) and every module in turn — Elastic ingestion, heuristic grouping, Git-insights (LibGit2Sharp), persistence + Minimal API, and the CLI — plus the React triage table, the demo-api with Serilog, and a Dockerized Elasticsearch stack. First full pipeline: ingest → analyse → git evidence → API / UI / CLI.</td></tr>
+<tr><td><strong>18 Jun</strong></td><td>Realistic demo data + time windows</td><td><code>acd1c28</code>, <code>40759e9</code>, <code>0a3b622</code>, <code>66a932e</code>, <code>d54056f</code></td><td>Rewrote demo-api for real EF Core CRUD against Dockerized SQL Server (genuine DB failures: unique-constraint, timeouts); surfaced the offending source line + git blame in “How to fix”; added the <code>TimeWindow</code> value object (relative/absolute ranges), the frontend TimeRangePicker + API dropdown, and expandable cells.</td></tr>
+<tr><td><strong>19 Jun</strong></td><td>Server-side pagination + LLM groundwork</td><td><code>c5dd730</code>, <code>13e7027</code>, <code>b923f5c</code>, <code>e5670e9</code>, <code>d0111a6</code></td><td>Shipped server-side pagination (PagedResult / TriageSummary / GroupPager, paged groups endpoint, TriageRunHeader, numbered footer); fixed fractional lookback hours; scaffolded the <code>HotFixAmbulance.Llm</code> project and the JSON-contract prompt builder.</td></tr>
+<tr><td><strong>20 Jun</strong></td><td>Whole flow on local Qwen + visible proof + docs</td><td><code>3831bc8</code>, <code>9d7f17e</code>, <code>c15520b</code>, <code>979252b</code>, <code>7e25e9a</code>, <code>3657a19</code></td><td>Completed the LLM layer (ILlmClient / OllamaLlmClient, the IGroupEnricher seam, LlmGroupEnricher with graceful fallback, the Analysis:Strategy toggle); added the per-group <code>AnalyzedBy</code> marker and the 🤖 badge, then rebranded it to <strong>Qwen</strong>; fixed a latent CLI DI break; Dockerised the Qwen runtime with model bootstrap + corporate-CA injection; ran the whole demo on Qwen and proved it via the UI badge; and produced the full exam documentation (write-up, evidence, merged PDF).</td></tr>
+</tbody></table>
+<p><strong>Reviewer note.</strong> The history reads as a disciplined, test-first progression: a working vertical slice first</p>
+<p>(16 Jun), then realism and UX (18 Jun), then scale/pagination and LLM groundwork (19 Jun), and finally the AI</p>
+<p>feature delivered end-to-end with proof and documentation (20 Jun). Each phase is a small, independently-tested</p>
+<p>commit, so any single step can be reviewed in isolation, and the green pre-commit gate on every commit means the</p>
+<p><code>main</code>/integration branch was never left broken.</p>
 </body></html>

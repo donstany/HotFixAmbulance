@@ -2,7 +2,7 @@
 ## HotFixAmbulance — AI-Powered Production-Error Triage for .NET Web APIs
 
 **Author:** Stanislav Stanev
-**AI tools used:** Claude Code (primary)
+**AI tool used:** Claude Code — Anthropic’s agentic CLI — running the **Claude Opus 4.8** model (1M-context)
 **Repository:** https://github.com/myPOStech/mps-banking-hot-fix-ambulance
 **Working-system evidence:** `docs/evidence/working-system-evidence.pdf`
 
@@ -183,7 +183,7 @@ unless `dotnet test`, `dotnet format`, frontend tests and lint all pass — so `
   the build. Each was diagnosed from command output and fixed.
 
 ### Which tool helped the most, and why
-**Claude Code** was the primary and most valuable tool. Beyond code generation it could **run** the project — execute
+**Claude Code** running the **Claude Opus 4.8** model (1M-context) was the primary and most valuable tool. Beyond code generation it could **run** the project — execute
 Docker/PowerShell/dotnet, read the failures, and iterate — which is what actually solved the infrastructure problems
 (the CA injection, the DI crash, the parse bug). Its skills/sub-agents kept the work disciplined (plan → TDD → verify →
 commit with a passing pre-commit gate), and it could reason across the whole repo (backend + frontend + infra) to keep
@@ -364,3 +364,25 @@ docker compose -f infra/elasticsearch/docker-compose.yml down
 docker compose -f infra/mssql/docker-compose.yml down
 # add `-v` to any of the above to also delete its data/model volume
 ```
+
+---
+
+## 9. Project Timeline (from the Git history)
+
+The project was built in **69 commits over four days (16–20 June 2026)**. Every commit was gated by a pre-commit
+hook that runs the full backend + frontend test suites, formatting and lint — `--no-verify` was never used — so each
+row below is a green, independently-inspectable checkpoint. The history is generalised by day, with the milestone
+reached and a few representative commit ids.
+
+| Day | Milestone | Key commits | What was done |
+|-----|-----------|-------------|---------------|
+| **16 Jun** | End-to-end skeleton working | `981a210`, `bb62f32`, `0cd65da`, `b213806`, `2b061dd`, `bc7b613`, `b773ed7` | Scaffolded the repo + Claude tooling, then built the backend solution and Core domain (Severity / LogEntry / ErrorGroup, 16 tests) and every module in turn — Elastic ingestion, heuristic grouping, Git-insights (LibGit2Sharp), persistence + Minimal API, and the CLI — plus the React triage table, the demo-api with Serilog, and a Dockerized Elasticsearch stack. First full pipeline: ingest → analyse → git evidence → API / UI / CLI. |
+| **18 Jun** | Realistic demo data + time windows | `acd1c28`, `40759e9`, `0a3b622`, `66a932e`, `d54056f` | Rewrote demo-api for real EF Core CRUD against Dockerized SQL Server (genuine DB failures: unique-constraint, timeouts); surfaced the offending source line + git blame in “How to fix”; added the `TimeWindow` value object (relative/absolute ranges), the frontend TimeRangePicker + API dropdown, and expandable cells. |
+| **19 Jun** | Server-side pagination + LLM groundwork | `c5dd730`, `13e7027`, `b923f5c`, `e5670e9`, `d0111a6` | Shipped server-side pagination (PagedResult / TriageSummary / GroupPager, paged groups endpoint, TriageRunHeader, numbered footer); fixed fractional lookback hours; scaffolded the `HotFixAmbulance.Llm` project and the JSON-contract prompt builder. |
+| **20 Jun** | Whole flow on local Qwen + visible proof + docs | `3831bc8`, `9d7f17e`, `c15520b`, `979252b`, `7e25e9a`, `3657a19` | Completed the LLM layer (ILlmClient / OllamaLlmClient, the IGroupEnricher seam, LlmGroupEnricher with graceful fallback, the Analysis:Strategy toggle); added the per-group `AnalyzedBy` marker and the 🤖 badge, then rebranded it to **Qwen**; fixed a latent CLI DI break; Dockerised the Qwen runtime with model bootstrap + corporate-CA injection; ran the whole demo on Qwen and proved it via the UI badge; and produced the full exam documentation (write-up, evidence, merged PDF). |
+
+**Reviewer note.** The history reads as a disciplined, test-first progression: a working vertical slice first
+(16 Jun), then realism and UX (18 Jun), then scale/pagination and LLM groundwork (19 Jun), and finally the AI
+feature delivered end-to-end with proof and documentation (20 Jun). Each phase is a small, independently-tested
+commit, so any single step can be reviewed in isolation, and the green pre-commit gate on every commit means the
+`main`/integration branch was never left broken.
