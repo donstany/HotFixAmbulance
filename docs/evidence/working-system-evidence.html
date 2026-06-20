@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HotFixAmbulance — Working System Evidence</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #1e293b; font-size: 11px; line-height: 1.5; margin: 0; }
+  h1 { font-size: 20px; margin: 0 0 2px; color: #0f172a; }
+  h2 { font-size: 14px; margin: 18px 0 6px; color: #4338ca; border-bottom: 2px solid #e2e8f0; padding-bottom: 3px; }
+  .sub { color: #64748b; font-size: 11px; margin: 0 0 10px; }
+  p { margin: 6px 0; }
+  figure { margin: 0 0 6px; page-break-inside: avoid; }
+  img { width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; }
+  figcaption { font-size: 10.5px; color: #334155; margin-top: 5px; }
+  figcaption b { color: #0f172a; }
+  .tag { display: inline-block; background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd;
+         border-radius: 9px; padding: 0 6px; font-size: 9.5px; font-weight: 600; }
+  .ok { color: #15803d; font-weight: 600; }
+  pre { background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 10px 12px; font-size: 9.5px;
+        line-height: 1.45; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  pre .c { color: #7dd3fc; }
+  pre .g { color: #86efac; }
+  .meta { font-size: 10px; color: #475569; }
+  .pb { page-break-before: always; }
+  ul { margin: 4px 0 4px 16px; padding: 0; }
+  li { margin: 2px 0; }
+  a { color: #2563eb; word-break: break-all; }
+</style>
+</head>
+<body>
+
+  <h1>HotFixAmbulance — Working System Evidence</h1>
+  <p class="sub">Production-error triage for .NET Web APIs, with AI analysis by a locally-hosted <b>Qwen</b> model. Captured 2026-06-20.</p>
+
+  <p><b>What it does &amp; how it works.</b> HotFixAmbulance pulls the last N hours of error logs from
+  <b>Elasticsearch</b>, groups them by exception fingerprint, and for every group asks a locally-hosted
+  <b>Qwen LLM (<span class="tag">qwen2.5:3b</span>)</b> — served in <b>Docker</b> through an Ollama-compatible
+  runtime — to write a plain-English <i>“Suggestion for Error”</i> (what the error means) and a concrete
+  <i>“How to fix”</i> (the remediation), grounded in the service’s Git history. Each run is persisted to
+  <b>SQLite</b> and rendered in a <b>React</b> UI. Every group the model analyses is tagged
+  <code>analyzedBy = "Llm"</code>, and the UI renders a violet <span class="tag">🤖 Qwen</span> badge on its two
+  AI columns — so the use of Qwen is visible and verifiable, per group.</p>
+
+  <p class="meta"><b>Pipeline:</b> Elasticsearch → group by fingerprint → per-group Qwen enrichment (with Git-history grounding) → SQLite → REST API (<code>:5283</code>) → React UI (<code>:5173</code>). &nbsp; <b>Runtime:</b> Qwen in Docker (CPU-only, <code>:11434</code>).</p>
+
+  <h2>Figure 1 — System overview (ingestion, grouping, AI layer ran)</h2>
+  <figure>
+    <img src="shots/01-overview.png" alt="overview">
+    <figcaption>
+      Triage run for the <b>demo-api</b> service: <b>73 error logs</b> collapsed into <b>38 distinct groups</b>.
+      The metrics panel confirms the AI layer ran end-to-end — <b>38 “AI Insights Generated”</b> and
+      <b>38 “Fix Recommendations”</b>, i.e. <i>every</i> group was enriched. The table shows each group’s
+      severity, occurrence count, first/last-seen, exception type with stack frame, message and endpoint — the raw
+      evidence read from Elasticsearch. <b>Proves:</b> the ingestion → grouping → analysis pipeline works end-to-end.
+    </figcaption>
+  </figure>
+
+  <h2>Figure 2 — Proof the analysis is produced by Qwen</h2>
+  <figure>
+    <img src="shots/02-qwen-badges.png" alt="qwen badges and AI text">
+    <figcaption>
+      The two right-most columns are the AI columns. Every cell carries a violet <span class="tag">🤖 Qwen</span>
+      badge, which the UI renders <i>only</i> when a group’s <code>analyzedBy === 'Llm'</code> — a value the backend
+      sets <i>exclusively</i> after a successful Qwen completion (any model failure silently falls back to the
+      heuristic and shows no badge). The text is genuinely model-generated and context-specific — e.g.
+      <i>“The error likely stems from a failed database save operation at line 311 in DemoDatabase.cs…”</i> and
+      <i>“The error occurs due to an invalid SQL object name 'Pricing.Records'…”</i> — not a static template.
+      <b>Proves:</b> the system demonstrably uses Qwen to analyse each error and propose a fix.
+    </figcaption>
+  </figure>
+
+  <h2 class="pb">Figure 3 — The complete result set (all 38 groups)</h2>
+  <figure>
+    <img src="shots/03-full-table.png" alt="full table">
+    <figcaption>
+      The full run. <b>All 38 groups</b> carry the <span class="tag">🤖 Qwen</span> badge on both AI columns,
+      confirming the entire run was analysed by Qwen (run-level <code>analyzedBy = "Llm"</code>), not the
+      heuristic fallback. <b>Proves:</b> the whole demo flow runs on Qwen.
+    </figcaption>
+  </figure>
+
+  <h2>Figure 4 — Backend / runtime evidence (terminal)</h2>
+  <pre><span class="c"># The Qwen model is served from Docker (CPU-only) on :11434</span>
+$ docker ps --filter name=hfa-qwen
+hfa-qwen   ollama/ollama:latest   Up 59 minutes (healthy)   0.0.0.0:11434-&gt;11434/tcp
+
+<span class="c"># The qwen2.5:3b model is pulled into the persistent volume</span>
+$ docker exec hfa-qwen ollama list
+NAME          ID             SIZE     MODIFIED
+qwen2.5:3b    357c53fb659c   1.9 GB   37 minutes ago
+
+<span class="c"># A triage run produced via the API — analyzed by the LLM, every group enriched</span>
+$ curl -s http://localhost:5283/api/triage/runs/17ecb4e6-.../
+apiName     = demo-api
+analyzedBy  = <span class="g">Llm</span>
+totalLogs   = 73
+totalGroups = 38
+summary.withSuggestions = 38      <span class="c"># all 38 groups got an AI suggestion</span>
+summary.withFixes       = 38      <span class="c"># all 38 groups got an AI fix</span>
+
+<span class="c"># During inference the Qwen container saturates the CPU (one call per group)</span>
+$ docker stats hfa-qwen --no-stream
+hfa-qwen   CPU = <span class="g">1177%</span>   MEM = 4.4 GiB / 15.4 GiB</pre>
+  <p class="meta"><b>Proves:</b> Qwen runs locally in Docker, the model is loaded, and a real triage run returns
+  <code>analyzedBy = Llm</code> with an AI suggestion + fix for every one of the 38 groups.</p>
+
+  <h2>How the project is built (modules)</h2>
+  <ul>
+    <li><b>Ingestion</b> — <code>HotFixAmbulance.Elastic</code>: queries Elasticsearch for Fatal/Error/Warning logs in the window.</li>
+    <li><b>Analysis / grouping</b> — <code>HotFixAmbulance.Analysis</code>: groups logs by (exception, normalized message, endpoint) and ranks them.</li>
+    <li><b>AI enrichment</b> — <code>LlmGroupEnricher</code> + <code>OllamaLlmClient</code>: calls the Qwen runtime per group; on any failure falls back to a deterministic Git-history heuristic.</li>
+    <li><b>Git insights</b> — <code>HotFixAmbulance.GitInsights</code>: mines <code>origin/main</code> for blame + related commits to ground the model.</li>
+    <li><b>Persistence</b> — <code>HotFixAmbulance.Persistence</code>: stores each run (and per-group <code>AnalyzedBy</code>) in SQLite.</li>
+    <li><b>API + UI</b> — ASP.NET Core REST API and a React/TanStack table that renders the 🤖 Qwen badge.</li>
+    <li><b>Infrastructure</b> — <code>infra/qwen</code>: Docker Compose Qwen runtime + bootstrap that pre-pulls the model (with corporate-CA injection for TLS-intercepting proxies).</li>
+  </ul>
+
+  <p class="meta"><b>Repository:</b> <a href="https://github.com/myPOStech/mps-banking-hot-fix-ambulance">https://github.com/myPOStech/mps-banking-hot-fix-ambulance</a>
+  &nbsp;·&nbsp; <b>AI tool used:</b> Claude Code (Opus/Sonnet) for design, implementation, TDD and orchestration.</p>
+
+</body>
+</html>
