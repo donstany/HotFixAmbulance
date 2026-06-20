@@ -11,7 +11,25 @@ Not suitable for anything else.
 | File | Purpose |
 |---|---|
 | `docker-compose.yml` | CPU-only Qwen runtime on `http://localhost:11434`, models in the `hfa-qwen-data` named volume. |
+| `docker-compose.corp.yml` | Overlay for corporate networks: mounts a host CA bundle and sets `SSL_CERT_FILE` so the container trusts an intercepting proxy. |
+| `export-host-ca.ps1` | Exports the host's trusted CA stores to `corp-ca-bundle.crt` (git-ignored, machine-specific) for the overlay above. |
 | `bootstrap.ps1` | Idempotent: waits for the runtime, pulls `qwen2.5:3b` if absent, runs a `/api/chat` JSON sanity probe. |
+
+## Corporate networks (TLS interception)
+
+If `ollama pull` fails with `x509: certificate signed by unknown authority`, a
+corporate proxy is MITM-terminating TLS and the container does not trust the
+corporate root CA. Export the host CA bundle and start the runtime with the
+overlay (this is what `scripts/demo.ps1` does automatically):
+
+```powershell
+powershell -File infra/qwen/export-host-ca.ps1
+docker compose -f infra/qwen/docker-compose.yml -f infra/qwen/docker-compose.corp.yml up -d
+powershell -File infra/qwen/bootstrap.ps1
+```
+
+`corp-ca-bundle.crt` is machine-specific and git-ignored. On a network without
+interception, skip the overlay and use `docker-compose.yml` alone.
 
 ## Why a bootstrap step exists
 

@@ -92,3 +92,6 @@ docs/dev-log.local.md
 demo-api/logs/
 **/hotfix.db
 **/hotfix.db-*
+
+# Machine-specific corporate CA bundle exported by infra/qwen/export-host-ca.ps1
+infra/qwen/corp-ca-bundle.crt

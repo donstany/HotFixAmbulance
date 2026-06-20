@@ -1,0 +1,18 @@
+# Corporate-network override for the Qwen runtime.
+#
+# Apply ON TOP of docker-compose.yml when a corporate proxy intercepts TLS and the
+# container would otherwise fail `ollama pull` with "x509: certificate signed by
+# unknown authority":
+#
+#   powershell -File infra/qwen/export-host-ca.ps1
+#   docker compose -f infra/qwen/docker-compose.yml -f infra/qwen/docker-compose.corp.yml up -d
+#
+# corp-ca-bundle.crt is produced by export-host-ca.ps1 from the host's trusted CA
+# stores and is git-ignored (machine-specific). SSL_CERT_FILE makes Go (ollama) trust it.
+
+services:
+  qwen:
+    volumes:
+      - ./corp-ca-bundle.crt:/etc/ssl/certs/host-ca-bundle.crt:ro
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/host-ca-bundle.crt
