@@ -33,6 +33,11 @@ builder.Services.AddHotFixGitInsights(configuration);
 builder.Services.AddHotFixPersistence(configuration);
 builder.Services.AddSingleton<IAnalysisStrategy, HeuristicAnalyzer>();
 
+// Group enrichment fills the two AI columns; the active strategy is chosen from
+// Analysis:Strategy (Llm -> LlmGroupEnricher via the Qwen runtime, else the git heuristic).
+// Registers IGroupEnricher (required by TriageService) and, internally, AddHotFixLlm.
+builder.Services.AddHotFixGroupEnrichment(configuration);
+
 var apisConfigPath = configuration["Apis:ConfigPath"];
 if (string.IsNullOrWhiteSpace(apisConfigPath))
 {
