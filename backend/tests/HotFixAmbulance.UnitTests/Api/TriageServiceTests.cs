@@ -166,6 +166,33 @@ public sealed class TriageServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_sets_AnalyzedBy_on_each_group_from_enricher_source()
+    {
+        var enricher = Substitute.For<IGroupEnricher>();
+        enricher.EnrichAsync(Arg.Any<string>(), Arg.Any<ErrorGroup>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(new EnrichedGroup(ci.Arg<ErrorGroup>(), "Llm")));
+        var (sut, source, _, _, _, _) = BuildSut(enricher);
+        source.SearchAsync(Arg.Any<LogQuery>(), Arg.Any<CancellationToken>())
+            .Returns(ToAsync([Log()]));
+
+        var result = await sut.RunAsync("checkout-api", TimeSpan.FromHours(24));
+
+        result.Groups[0].AnalyzedBy.Should().Be("Llm");
+    }
+
+    [Fact]
+    public async Task RunAsync_sets_AnalyzedBy_Heuristic_on_groups_for_default_git_enricher()
+    {
+        var (sut, source, _, _, _, _) = BuildSut();
+        source.SearchAsync(Arg.Any<LogQuery>(), Arg.Any<CancellationToken>())
+            .Returns(ToAsync([Log()]));
+
+        var result = await sut.RunAsync("checkout-api", TimeSpan.FromHours(24));
+
+        result.Groups[0].AnalyzedBy.Should().Be("Heuristic");
+    }
+
+    [Fact]
     public async Task RunAsync_passes_lookback_to_ingestor()
     {
         var (sut, source, _, _, _, _) = BuildSut();

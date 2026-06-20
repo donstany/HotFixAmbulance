@@ -95,4 +95,16 @@ public class ErrorGroupTests
 
         ranked.Should().Equal(fatal, err5, err2New, err2Old, warn);
     }
+
+    [Fact]
+    public void AnalyzedBy_defaults_to_null_and_is_settable_via_with()
+    {
+        var group = ErrorGroup.FromLogs(new[] { Log() });
+
+        group.AnalyzedBy.Should().BeNull("FromLogs does not set AnalyzedBy");
+
+        var tagged = group with { AnalyzedBy = "Llm" };
+        tagged.AnalyzedBy.Should().Be("Llm");
+        group.AnalyzedBy.Should().BeNull("original must be unaffected");
+    }
 }

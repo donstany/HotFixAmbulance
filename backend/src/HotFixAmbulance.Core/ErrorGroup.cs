@@ -47,6 +47,12 @@ public sealed record ErrorGroup
     /// </summary>
     public string? HowToFix { get; init; }
 
+    /// <summary>
+    /// Strategy that wrote the AI columns for this group ("Heuristic", "Llm", etc.).
+    /// Null on groups produced before this field was introduced.
+    /// </summary>
+    public string? AnalyzedBy { get; init; }
+
     public static ErrorGroup FromLogs(IReadOnlyCollection<LogEntry> logs)
     {
         ArgumentNullException.ThrowIfNull(logs);

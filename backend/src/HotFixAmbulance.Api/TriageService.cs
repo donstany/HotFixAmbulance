@@ -73,7 +73,7 @@ public sealed class TriageService
         foreach (var g in groups)
         {
             var result = await _enricher.EnrichAsync(apiName, g, cancellationToken).ConfigureAwait(false);
-            enriched.Add(result.Group);
+            enriched.Add(result.Group with { AnalyzedBy = result.Source });
             sources.Add(result.Source);
         }
 
