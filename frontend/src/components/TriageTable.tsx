@@ -27,7 +27,7 @@ import type { ErrorGroup } from '../types';
 import { SeverityBadge } from './SeverityBadge';
 import { ColumnSettingsModal } from './ColumnSettingsModal';
 import { ExpandableCell } from './ExpandableCell';
-import { OllamaBadge } from './OllamaBadge';
+import { QwenBadge } from './QwenBadge';
 import { Pagination } from './Pagination';
 
 const columnHelper = createColumnHelper<ErrorGroup>();
@@ -260,7 +260,7 @@ export function TriageTable({
               enableSorting: false,
               cell: (i) => (
                 <div>
-                  {i.row.original.analyzedBy === 'Llm' && <OllamaBadge />}
+                  {i.row.original.analyzedBy === 'Llm' && <QwenBadge />}
                   <ExpandableCell
                     dataTestId="suggestion"
                     value={i.getValue()}
@@ -279,7 +279,7 @@ export function TriageTable({
               enableSorting: false,
               cell: (i) => (
                 <div>
-                  {i.row.original.analyzedBy === 'Llm' && <OllamaBadge />}
+                  {i.row.original.analyzedBy === 'Llm' && <QwenBadge />}
                   <ExpandableCell
                     dataTestId="howtofix"
                     value={i.getValue()}

@@ -104,18 +104,18 @@ describe('<TriageTable />', () => {
     expect(screen.getByRole('navigation', { name: /pagination/i })).toBeInTheDocument();
   });
 
-  it('renders the Ollama badge on both AI columns when analyzedBy is Llm', () => {
+  it('renders the Qwen badge on both AI columns when analyzedBy is Llm', () => {
     renderTable({ groups: [groupWith({ analyzedBy: 'Llm' })] });
-    expect(screen.getAllByTestId('ollama-badge')).toHaveLength(2);
+    expect(screen.getAllByTestId('qwen-badge')).toHaveLength(2);
   });
 
-  it('does not render the Ollama badge when analyzedBy is Heuristic', () => {
+  it('does not render the Qwen badge when analyzedBy is Heuristic', () => {
     renderTable({ groups: [groupWith({ analyzedBy: 'Heuristic' })] });
-    expect(screen.queryByTestId('ollama-badge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('qwen-badge')).not.toBeInTheDocument();
   });
 
-  it('does not render the Ollama badge when analyzedBy is null', () => {
+  it('does not render the Qwen badge when analyzedBy is null', () => {
     renderTable({ groups: [groupWith({ analyzedBy: null })] });
-    expect(screen.queryByTestId('ollama-badge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('qwen-badge')).not.toBeInTheDocument();
   });
 });
