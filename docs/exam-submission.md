@@ -377,7 +377,7 @@ docker compose -f infra/mssql/docker-compose.yml down
 
 ## 9. Project Timeline (from the Git history)
 
-The project was built in **69 commits over four days (16–20 June 2026)**. Every commit was gated by a pre-commit
+The project was built in **78 commits over five days (16–21 June 2026)**. Every commit was gated by a pre-commit
 hook that runs the full backend + frontend test suites, formatting and lint — `--no-verify` was never used — so each
 row below is a green, independently-inspectable checkpoint. The history is generalised by day, with the milestone
 reached and a few representative commit ids.
@@ -387,13 +387,14 @@ reached and a few representative commit ids.
 | **16 Jun** | End-to-end skeleton working | `981a210`, `bb62f32`, `0cd65da`, `b213806`, `2b061dd`, `bc7b613`, `b773ed7` | Scaffolded the repo + Claude tooling, then built the backend solution and Core domain (Severity / LogEntry / ErrorGroup, 16 tests) and every module in turn — Elastic ingestion, heuristic grouping, Git-insights (LibGit2Sharp), persistence + Minimal API, and the CLI — plus the React triage table, the demo-api with Serilog, and a Dockerized Elasticsearch stack. First full pipeline: ingest → analyse → git evidence → API / UI / CLI. |
 | **18 Jun** | Realistic demo data + time windows | `acd1c28`, `40759e9`, `0a3b622`, `66a932e`, `d54056f` | Rewrote demo-api for real EF Core CRUD against Dockerized SQL Server (genuine DB failures: unique-constraint, timeouts); surfaced the offending source line + git blame in “How to fix”; added the `TimeWindow` value object (relative/absolute ranges), the frontend TimeRangePicker + API dropdown, and expandable cells. |
 | **19 Jun** | Server-side pagination + LLM groundwork | `c5dd730`, `13e7027`, `b923f5c`, `e5670e9`, `d0111a6` | Shipped server-side pagination (PagedResult / TriageSummary / GroupPager, paged groups endpoint, TriageRunHeader, numbered footer); fixed fractional lookback hours; scaffolded the `HotFixAmbulance.Llm` project and the JSON-contract prompt builder. |
-| **20 Jun** | Whole flow on local Qwen + visible proof + docs | `3831bc8`, `9d7f17e`, `c15520b`, `979252b`, `7e25e9a`, `3657a19` | Completed the LLM layer (ILlmClient / OllamaLlmClient, the IGroupEnricher seam, LlmGroupEnricher with graceful fallback, the Analysis:Strategy toggle); added the per-group `AnalyzedBy` marker and the 🤖 badge, then rebranded it to **Qwen**; fixed a latent CLI DI break; Dockerised the Qwen runtime with model bootstrap + corporate-CA injection; ran the whole demo on Qwen and proved it via the UI badge; and produced the full exam documentation (write-up, evidence, merged PDF). |
+| **20 Jun** | Full Qwen flow + UX polish + documentation | `3831bc8`, `9d7f17e`, `c15520b`, `979252b`, `7e25e9a`, `3657a19`, `542c197`, `a590912`, `120d14b`, `fdd3f3f`, `a642f23`, `bfdf985` | Completed the LLM layer (ILlmClient / OllamaLlmClient, the IGroupEnricher seam, LlmGroupEnricher with graceful fallback, the Analysis:Strategy toggle); added the per-group `AnalyzedBy` marker and the 🤖 Qwen badge; fixed a latent CLI DI break; Dockerised the Qwen runtime with model bootstrap + corporate-CA injection; ran the whole demo end-to-end on Qwen and proved it via the UI badge; added `ExpandableCell` with real overflow detection, Show-more control, and full-text modal; pinned LF line endings via `.gitattributes`; produced and merged the full exam documentation (write-up, evidence screenshots, merged PDF); refreshed all README files; published the repository to `github.com/donstany/HotFixAmbulance`. |
+| **21 Jun** | Architecture diagram + submission artefacts | `79acc7c` | Added section 9.1 “High-Level System Architecture Map” — a mermaid flowchart (renders on GitHub) with a full component legend table covering all 14 system nodes; added section 10 “Submission Artefacts” with direct links to the PDF and markdown source; regenerated the PDF with a CSS-rendered architecture diagram (no external CDN dependency). |
 
 **Reviewer note.** The history reads as a disciplined, test-first progression: a working vertical slice first
-(16 Jun), then realism and UX (18 Jun), then scale/pagination and LLM groundwork (19 Jun), and finally the AI
-feature delivered end-to-end with proof and documentation (20 Jun). Each phase is a small, independently-tested
-commit, so any single step can be reviewed in isolation, and the green pre-commit gate on every commit means the
-`main`/integration branch was never left broken.
+(16 Jun), then realism and UX (18 Jun), then scale/pagination and LLM groundwork (19 Jun), the AI feature
+delivered end-to-end with proof and UX polish (20 Jun), and final documentation and architecture artefacts
+(21 Jun). Each phase is a small, independently-tested commit, so any single step can be reviewed in isolation,
+and the green pre-commit gate on every commit means the `main` branch was never left broken.
 
 ### 9.1 High-Level System Architecture Map
 
