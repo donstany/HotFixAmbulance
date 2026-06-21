@@ -395,6 +395,72 @@ feature delivered end-to-end with proof and documentation (20 Jun). Each phase i
 commit, so any single step can be reviewed in isolation, and the green pre-commit gate on every commit means the
 `main`/integration branch was never left broken.
 
+### 9.1 High-Level System Architecture Map
+
+The diagram below shows every runtime component and the data-flow path from raw error logs to the AI-enriched triage result visible in the UI.
+
+```mermaid
+flowchart LR
+    subgraph docker ["🐳  Docker — local infrastructure"]
+        direction TB
+        ES[("Elasticsearch :9200\nlog store")]
+        SQL[("SQL Server :1433\ndemo-api DB")]
+        QW["🤖  Qwen 2.5 3B\nOllama runtime :11434"]
+    end
+
+    subgraph backend ["⚙️  .NET 10 Backend"]
+        direction TB
+        API["HotFixAmbulance.Api\nASP.NET Core :5283"]
+        TS["TriageService\norchestrates the run"]
+        HA["HeuristicAnalyzer\ngroup · rank · fingerprint"]
+        DEC{{"IGroupEnricher\nAnalysis:Strategy"}}
+        LLM["LlmGroupEnricher\nOllamaLlmClient\nAnalyzedBy = Llm"]
+        HEU["GitFixHintEnricher\ndeterministic fallback\nAnalyzedBy = Heuristic"]
+        GI["GitInsights\nLibGit2Sharp\nblame · commits"]
+        DB[("SQLite\npersistence")]
+    end
+
+    subgraph consumers ["👥  Consumers"]
+        UI["React UI :5173\n🤖 Qwen badge per group\nExpandableCell · pagination"]
+        CLI["HotFixAmbulance.Cli\none-shot JSON / table"]
+    end
+
+    GIT[("Git\norigin/main\nsource of truth")]
+    DEMO["demo-api\n.NET minimal API\nemits real DB errors"]
+
+    DEMO -->|"Serilog → Elastic sink"| ES
+    SQL -.->|"EF Core CRUD\ntimeouts · constraints"| DEMO
+    ES -->|"fetch Fatal/Error/Warn\nover time window"| API
+    API --> TS --> HA --> DEC
+    DEC -->|"Strategy = Llm"| LLM
+    DEC -->|"on failure / default"| HEU
+    LLM -->|"JSON prompt\nsuggestion · howToFix"| QW
+    LLM & HEU --> GI
+    GI -->|"blame · related commits"| GIT
+    LLM & HEU -->|"enriched groups\nAnalyzedBy tag"| DB
+    DB -->|"paged results"| API
+    UI & CLI -->|"HTTP"| API
+```
+
+#### Legend — each node explained
+
+| Symbol | Component | Role |
+| ------ | --------- | ---- |
+| `Elasticsearch :9200` | Log store (Docker) | Holds all `Fatal`/`Error`/`Warning` entries emitted by the demo-api via Serilog. |
+| `SQL Server :1433` | Relational DB (Docker) | Backing store for the demo-api; intentional EF Core failures (unique-key, timeout) produce real error logs. |
+| `Qwen 2.5 3B :11434` | Local LLM (Docker) | Ollama-served model that generates `suggestion` + `howToFix` JSON, grounded in git evidence. Never leaves the host. |
+| `HotFixAmbulance.Api :5283` | REST API (.NET) | Entry point for all triage runs; returns paged groups, run history, and summary stats. |
+| `TriageService` | Orchestrator | Fetches logs → groups → enriches → persists → returns result. |
+| `HeuristicAnalyzer` | Grouping engine | Deterministic: fingerprints by (exception type, normalised message, endpoint), ranks Fatal > Error > Warning. |
+| `IGroupEnricher` | Strategy switch | Reads `Analysis:Strategy` from config; routes to LLM or heuristic enricher. |
+| `LlmGroupEnricher` | AI enricher | Calls Qwen via `ILlmClient`; sets `AnalyzedBy = "Llm"` on success; silently falls back on any failure. |
+| `GitFixHintEnricher` | Heuristic enricher | Builds a fix hint from git blame + related commits; sets `AnalyzedBy = "Heuristic"`. |
+| `GitInsights` | Git reader | LibGit2Sharp: clones/pulls `origin/main`, returns blame line + related commit SHAs as grounding evidence. |
+| `SQLite` | Run persistence | Stores every triage run with serialised groups; survives restarts; used for run history. |
+| `React UI :5173` | Frontend | TanStack Table with 13 columns; renders 🤖 Qwen badge when `analyzedBy === "Llm"`; expandable AI cells. |
+| `HotFixAmbulance.Cli` | CLI | One-shot triage for terminal / CI use; outputs JSON or formatted table. |
+| `demo-api` | Error producer | Sample .NET 10 minimal API wired to produce a realistic spread of DB exceptions for demo runs. |
+
 ---
 
 ## 10. Submission Artefacts

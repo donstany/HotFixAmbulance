@@ -5,6 +5,7 @@ body { font-family: "Segoe UI", Arial, sans-serif; color: #1e293b; font-size: 11
 h1 { font-size: 22px; color: #0f172a; margin: 0 0 4px; }
 h2 { font-size: 15px; color: #4338ca; margin: 20px 0 7px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px; page-break-after: avoid; }
 h3 { font-size: 12.5px; color: #1e3a8a; margin: 13px 0 4px; page-break-after: avoid; }
+h4 { font-size: 11px; color: #334155; margin: 10px 0 4px; page-break-after: avoid; }
 p { margin: 6px 0; text-align: justify; hyphens: auto; }
 ul { margin: 5px 0 8px 18px; padding: 0; }
 li { margin: 3px 0; text-align: justify; hyphens: auto; }
@@ -33,6 +34,41 @@ a { color: #2563eb; word-break: break-all; }
 .doc-fig figcaption { font-size: 10px; color: #334155; margin-top: 5px; text-align: justify; }
 .tag { display: inline-block; background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; border-radius: 9px; padding: 0 6px; font-size: 9px; font-weight: 600; }
 .meta { font-size: 10px; color: #475569; }
+
+/* ── Architecture diagram ── */
+.arch-diagram { margin: 12px 0 16px; border: 1.5px solid #c7d2fe; border-radius: 10px; padding: 12px 10px 10px; background: #fafafe; page-break-inside: avoid; }
+.arch-title { text-align: center; font-weight: 700; font-size: 11.5px; color: #312e81; margin-bottom: 10px; letter-spacing: 0.02em; }
+.arch-row { display: flex; align-items: flex-start; gap: 6px; }
+.arch-group { border: 1.5px solid #94a3b8; border-radius: 8px; padding: 7px 6px 6px; flex-shrink: 0; }
+.arch-group-label { font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; text-align: center; }
+.arch-docker { border-color: #60a5fa; background: #eff6ff; min-width: 90px; }
+.arch-docker .arch-group-label { color: #1d4ed8; }
+.arch-backend { border-color: #a78bfa; background: #f5f3ff; flex: 1; }
+.arch-backend .arch-group-label { color: #6d28d9; }
+.arch-consumers { border-color: #34d399; background: #ecfdf5; min-width: 100px; margin-bottom: 6px; }
+.arch-consumers .arch-group-label { color: #065f46; }
+.arch-git { border-color: #fb923c; background: #fff7ed; min-width: 100px; }
+.arch-git .arch-group-label { color: #9a3412; }
+.arch-node { font-size: 8.5px; line-height: 1.3; border-radius: 5px; padding: 4px 6px; margin: 3px 0; text-align: center; border: 1px solid #cbd5e1; background: #fff; color: #0f172a; }
+.arch-sub { font-size: 7.5px; color: #64748b; display: block; margin-top: 1px; }
+.arch-db { background: #f1f5f9; border-color: #94a3b8; }
+.arch-llm { background: #faf5ff; border-color: #c4b5fd; color: #4c1d95; }
+.arch-svc { background: #f8fafc; }
+.arch-decision { background: #eef2ff; border-color: #818cf8; color: #3730a3; font-weight: 600; }
+.arch-llm-svc { background: #faf5ff; border-color: #c4b5fd; color: #5b21b6; }
+.arch-heu-svc { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+.arch-ui { background: #ede9fe; border-color: #a78bfa; }
+.arch-badge { font-size: 8px; background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; border-radius: 8px; padding: 0 4px; display: inline-block; margin-top: 2px; }
+.arch-pipeline { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; justify-content: center; margin: 4px 0; }
+.arch-pipe { font-size: 11px; color: #6366f1; font-weight: 700; flex-shrink: 0; }
+.arch-split { display: flex; gap: 6px; margin: 4px 0; }
+.arch-branch { flex: 1; text-align: center; }
+.arch-branch-label { font-size: 7.5px; color: #64748b; margin-bottom: 2px; }
+.arch-bottom { margin-top: 4px; }
+.arch-arrow-col { display: flex; flex-direction: column; justify-content: space-around; align-items: center; min-width: 40px; padding-top: 20px; font-size: 8px; color: #64748b; gap: 8px; }
+.arch-arrow { writing-mode: horizontal-tb; white-space: nowrap; }
+.arch-small { font-size: 7.5px; color: #94a3b8; }
+.arch-right-col { display: flex; flex-direction: column; gap: 6px; }
 </style></head><body>
 <h1>AI-Assisted Development — Exam Submission</h1>
 <h2>HotFixAmbulance — AI-Powered Production-Error Triage for .NET Web APIs</h2>
@@ -76,17 +112,71 @@ a { color: #2563eb; word-break: break-all; }
 <h2>2. System Architecture — Modules</h2>
 <p>The system was decomposed (with AI assistance) into focused technological modules, each a separate .NET</p>
 <p>project or front-end/infra unit with a single responsibility and a clear seam (interface) to its neighbours.</p>
-<pre>Elasticsearch ─▶ [1] Ingestion ─▶ [2] Analysis/Grouping ─▶ [3] AI Enrichment (Qwen)
-                                                              │   grounded by
-                                                              ▼
-                                                       [4] Git Insights
-                                                              │
-                          [5] Persistence (SQLite) ◀──────────┘
-                                  │
-                 [6] REST API ──▶ [7] React UI  (🤖 Qwen badge)
-                                  └▶ [8] CLI
-            [9] Infrastructure (Docker: Qwen / Elastic / MSSQL) + demo orchestration
-            [10] Testing &amp; Quality (TDD, pre-commit gates) — cross-cutting</pre>
+
+<div class="arch-diagram">
+  <div class="arch-title">HotFixAmbulance — End-to-End Data Flow</div>
+  <div class="arch-row">
+
+    <div class="arch-group arch-docker">
+      <div class="arch-group-label">🐳 Docker — local infra</div>
+      <div class="arch-node arch-db">Elasticsearch :9200<br><span class="arch-sub">log store</span></div>
+      <div class="arch-node arch-db">SQL Server :1433<br><span class="arch-sub">demo-api DB</span></div>
+      <div class="arch-node arch-llm">🤖 Qwen 2.5 3B<br>Ollama :11434<br><span class="arch-sub">local LLM</span></div>
+    </div>
+
+    <div class="arch-arrow-col">
+      <div class="arch-arrow">logs →</div>
+      <div class="arch-arrow arch-small">errors ↓</div>
+      <div class="arch-arrow">← inference</div>
+    </div>
+
+    <div class="arch-group arch-backend">
+      <div class="arch-group-label">⚙️ .NET 10 Backend</div>
+      <div class="arch-pipeline">
+        <div class="arch-node arch-svc">API :5283</div>
+        <span class="arch-pipe">→</span>
+        <div class="arch-node arch-svc">TriageService</div>
+        <span class="arch-pipe">→</span>
+        <div class="arch-node arch-svc">HeuristicAnalyzer<br><span class="arch-sub">group · rank</span></div>
+        <span class="arch-pipe">→</span>
+        <div class="arch-node arch-decision">IGroupEnricher<br><span class="arch-sub">Analysis:Strategy</span></div>
+      </div>
+      <div class="arch-split">
+        <div class="arch-branch">
+          <div class="arch-branch-label">Strategy = Llm ↗</div>
+          <div class="arch-node arch-llm-svc">LlmGroupEnricher<br><span class="arch-sub">AnalyzedBy = "Llm"</span></div>
+        </div>
+        <div class="arch-branch">
+          <div class="arch-branch-label">fallback ↘</div>
+          <div class="arch-node arch-heu-svc">GitFixHintEnricher<br><span class="arch-sub">AnalyzedBy = "Heuristic"</span></div>
+        </div>
+      </div>
+      <div class="arch-pipeline arch-bottom">
+        <div class="arch-node arch-svc">GitInsights<br><span class="arch-sub">LibGit2Sharp</span></div>
+        <span class="arch-pipe">+</span>
+        <div class="arch-node arch-db">SQLite<br><span class="arch-sub">persistence</span></div>
+      </div>
+    </div>
+
+    <div class="arch-arrow-col">
+      <div class="arch-arrow">→ HTTP</div>
+      <div class="arch-arrow arch-small">blame ↑</div>
+    </div>
+
+    <div class="arch-right-col">
+      <div class="arch-group arch-consumers">
+        <div class="arch-group-label">👥 Consumers</div>
+        <div class="arch-node arch-ui">React UI :5173<br><span class="arch-badge">🤖 Qwen badge</span><br><span class="arch-sub">per analysed group</span></div>
+        <div class="arch-node arch-svc">CLI<br><span class="arch-sub">JSON / table output</span></div>
+      </div>
+      <div class="arch-group arch-git">
+        <div class="arch-group-label">📂 Source</div>
+        <div class="arch-node arch-db">Git origin/main<br><span class="arch-sub">blame · commits</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
 <table><thead><tr><th>#</th><th>Module</th><th>Project / Location</th><th>Responsibility</th></tr></thead><tbody>
 <tr><td>1</td><td>Log Ingestion</td><td><code>HotFixAmbulance.Elastic</code></td><td>Query Elasticsearch, normalise documents to <code>LogEntry</code>.</td></tr>
 <tr><td>2</td><td>Analysis &amp; Grouping</td><td><code>HotFixAmbulance.Analysis</code></td><td>Group by fingerprint, rank, baseline suggestions.</td></tr>
@@ -421,4 +511,95 @@ docker compose -f infra/mssql/docker-compose.yml down
 <p>feature delivered end-to-end with proof and documentation (20 Jun). Each phase is a small, independently-tested</p>
 <p>commit, so any single step can be reviewed in isolation, and the green pre-commit gate on every commit means the</p>
 <p><code>main</code>/integration branch was never left broken.</p>
+<h3>9.1 High-Level System Architecture Map</h3>
+<p>The diagram below shows every runtime component and the data-flow path from raw error logs to the AI-enriched triage result visible in the UI.</p>
+
+<div class="arch-diagram">
+  <div class="arch-title">HotFixAmbulance — End-to-End Data Flow</div>
+  <div class="arch-row">
+
+    <div class="arch-group arch-docker">
+      <div class="arch-group-label">🐳 Docker — local infra</div>
+      <div class="arch-node arch-db">Elasticsearch :9200<br><span class="arch-sub">log store</span></div>
+      <div class="arch-node arch-db">SQL Server :1433<br><span class="arch-sub">demo-api DB</span></div>
+      <div class="arch-node arch-llm">🤖 Qwen 2.5 3B<br>Ollama :11434<br><span class="arch-sub">local LLM</span></div>
+    </div>
+
+    <div class="arch-arrow-col">
+      <div class="arch-arrow">logs →</div>
+      <div class="arch-arrow arch-small">errors ↓</div>
+      <div class="arch-arrow">← inference</div>
+    </div>
+
+    <div class="arch-group arch-backend">
+      <div class="arch-group-label">⚙️ .NET 10 Backend</div>
+      <div class="arch-pipeline">
+        <div class="arch-node arch-svc">API :5283</div>
+        <span class="arch-pipe">→</span>
+        <div class="arch-node arch-svc">TriageService</div>
+        <span class="arch-pipe">→</span>
+        <div class="arch-node arch-svc">HeuristicAnalyzer<br><span class="arch-sub">group · rank</span></div>
+        <span class="arch-pipe">→</span>
+        <div class="arch-node arch-decision">IGroupEnricher<br><span class="arch-sub">Analysis:Strategy</span></div>
+      </div>
+      <div class="arch-split">
+        <div class="arch-branch">
+          <div class="arch-branch-label">Strategy = Llm ↗</div>
+          <div class="arch-node arch-llm-svc">LlmGroupEnricher<br><span class="arch-sub">AnalyzedBy = "Llm"</span></div>
+        </div>
+        <div class="arch-branch">
+          <div class="arch-branch-label">fallback ↘</div>
+          <div class="arch-node arch-heu-svc">GitFixHintEnricher<br><span class="arch-sub">AnalyzedBy = "Heuristic"</span></div>
+        </div>
+      </div>
+      <div class="arch-pipeline arch-bottom">
+        <div class="arch-node arch-svc">GitInsights<br><span class="arch-sub">LibGit2Sharp</span></div>
+        <span class="arch-pipe">+</span>
+        <div class="arch-node arch-db">SQLite<br><span class="arch-sub">persistence</span></div>
+      </div>
+    </div>
+
+    <div class="arch-arrow-col">
+      <div class="arch-arrow">→ HTTP</div>
+      <div class="arch-arrow arch-small">blame ↑</div>
+    </div>
+
+    <div class="arch-right-col">
+      <div class="arch-group arch-consumers">
+        <div class="arch-group-label">👥 Consumers</div>
+        <div class="arch-node arch-ui">React UI :5173<br><span class="arch-badge">🤖 Qwen badge</span><br><span class="arch-sub">per analysed group</span></div>
+        <div class="arch-node arch-svc">CLI<br><span class="arch-sub">JSON / table output</span></div>
+      </div>
+      <div class="arch-group arch-git">
+        <div class="arch-group-label">📂 Source</div>
+        <div class="arch-node arch-db">Git origin/main<br><span class="arch-sub">blame · commits</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<h4>Legend — each node explained</h4>
+<table><thead><tr><th>Symbol</th><th>Component</th><th>Role</th></tr></thead><tbody>
+<tr><td><code>Elasticsearch :9200</code></td><td>Log store (Docker)</td><td>Holds all <code>Fatal</code>/<code>Error</code>/<code>Warning</code> entries emitted by the demo-api via Serilog.</td></tr>
+<tr><td><code>SQL Server :1433</code></td><td>Relational DB (Docker)</td><td>Backing store for the demo-api; intentional EF Core failures (unique-key, timeout) produce real error logs.</td></tr>
+<tr><td><code>Qwen 2.5 3B :11434</code></td><td>Local LLM (Docker)</td><td>Ollama-served model that generates <code>suggestion</code> + <code>howToFix</code> JSON, grounded in git evidence. Never leaves the host.</td></tr>
+<tr><td><code>HotFixAmbulance.Api :5283</code></td><td>REST API (.NET)</td><td>Entry point for all triage runs; returns paged groups, run history, and summary stats.</td></tr>
+<tr><td><code>TriageService</code></td><td>Orchestrator</td><td>Fetches logs → groups → enriches → persists → returns result.</td></tr>
+<tr><td><code>HeuristicAnalyzer</code></td><td>Grouping engine</td><td>Deterministic: fingerprints by (exception type, normalised message, endpoint), ranks Fatal &gt; Error &gt; Warning.</td></tr>
+<tr><td><code>IGroupEnricher</code></td><td>Strategy switch</td><td>Reads <code>Analysis:Strategy</code> from config; routes to LLM or heuristic enricher.</td></tr>
+<tr><td><code>LlmGroupEnricher</code></td><td>AI enricher</td><td>Calls Qwen via <code>ILlmClient</code>; sets <code>AnalyzedBy = "Llm"</code> on success; silently falls back on any failure.</td></tr>
+<tr><td><code>GitFixHintEnricher</code></td><td>Heuristic enricher</td><td>Builds a fix hint from git blame + related commits; sets <code>AnalyzedBy = "Heuristic"</code>.</td></tr>
+<tr><td><code>GitInsights</code></td><td>Git reader</td><td>LibGit2Sharp: clones/pulls <code>origin/main</code>, returns blame line + related commit SHAs as grounding evidence.</td></tr>
+<tr><td><code>SQLite</code></td><td>Run persistence</td><td>Stores every triage run with serialised groups; survives restarts; used for run history.</td></tr>
+<tr><td><code>React UI :5173</code></td><td>Frontend</td><td>TanStack Table with 13 columns; renders 🤖 Qwen badge when <code>analyzedBy === "Llm"</code>; expandable AI cells.</td></tr>
+<tr><td><code>HotFixAmbulance.Cli</code></td><td>CLI</td><td>One-shot triage for terminal / CI use; outputs JSON or formatted table.</td></tr>
+<tr><td><code>demo-api</code></td><td>Error producer</td><td>Sample .NET 10 minimal API wired to produce a realistic spread of DB exceptions for demo runs.</td></tr>
+</tbody></table>
+<hr>
+<h2>10. Submission Artefacts</h2>
+<p>The full exam documentation is available at two locations in the public repository:</p>
+<ul>
+<li><strong>PDF (formatted, with screenshots):</strong> <a href="https://github.com/donstany/HotFixAmbulance/blob/main/docs/evidence/HotFixAmbulance-Exam-Submission.pdf">docs/evidence/HotFixAmbulance-Exam-Submission.pdf</a></li>
+<li><strong>Markdown source:</strong> <a href="https://github.com/donstany/HotFixAmbulance/blob/main/docs/exam-submission.md">docs/exam-submission.md</a></li>
+</ul>
 </body></html>
